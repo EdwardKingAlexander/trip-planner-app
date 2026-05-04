@@ -14,8 +14,8 @@ import { request } from '@/routes/password';
 
 defineOptions({
     layout: {
-        title: 'Log in to your account',
-        description: 'Enter your email and password below to log in',
+        title: 'Welcome back',
+        description: 'Open your shared trips, reservations, documents, and reminders.',
     },
 });
 
@@ -90,10 +90,10 @@ defineProps<{
 
             <Button
                 type="submit"
-                class="mt-4 w-full"
                 :tabindex="4"
                 :disabled="processing"
                 data-test="login-button"
+                class="mt-4 w-full bg-[#1b6b6f] hover:bg-[#155356]"
             >
                 <Spinner v-if="processing" />
                 Log in

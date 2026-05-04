@@ -23,6 +23,10 @@ class HandleInertiaRequests extends Middleware
      */
     public function version(Request $request): ?string
     {
+        if (app()->runningUnitTests()) {
+            return null;
+        }
+
         return parent::version($request);
     }
 

@@ -12,8 +12,8 @@ import { store } from '@/routes/register';
 
 defineOptions({
     layout: {
-        title: 'Create an account',
-        description: 'Enter your details below to create your account',
+        title: 'Create your travel space',
+        description: 'Start planning trips you can share, update, and actually use while traveling.',
     },
 });
 </script>
@@ -85,10 +85,10 @@ defineOptions({
 
             <Button
                 type="submit"
-                class="mt-2 w-full"
                 tabindex="5"
                 :disabled="processing"
                 data-test="register-user-button"
+                class="mt-2 w-full bg-[#1b6b6f] hover:bg-[#155356]"
             >
                 <Spinner v-if="processing" />
                 Create account
