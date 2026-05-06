@@ -83,6 +83,16 @@ class Trip extends Model
         return $this->hasMany(TripReminder::class)->orderBy('remind_at');
     }
 
+    public function importBatches(): HasMany
+    {
+        return $this->hasMany(TripImportBatch::class)->latest();
+    }
+
+    public function automationSuggestions(): HasMany
+    {
+        return $this->hasMany(TripAutomationSuggestion::class)->latest();
+    }
+
     public function scopeVisibleTo($query, User $user)
     {
         $query->where('user_id', $user->id)

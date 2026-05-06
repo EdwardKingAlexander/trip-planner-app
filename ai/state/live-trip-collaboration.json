@@ -1,0 +1,77 @@
+{
+  "module": "live-trip-collaboration",
+  "status": "planned",
+  "last_updated": "2026-05-06",
+  "current_phase": {
+    "id": "01-collaboration-event-foundation",
+    "status": "planned",
+    "next_action": "Confirm realtime dependency path, then implement centralized trip collaboration events before notification fan-out."
+  },
+  "transport_decision": {
+    "preferred": "laravel-reverb-plus-echo",
+    "fallback": "inertia-polling-plus-partial-reloads",
+    "dependency_approval_required": true,
+    "current_repo_evidence": [
+      "No routes/channels.php file exists.",
+      "No config/broadcasting.php file exists.",
+      "package.json does not include laravel-echo or pusher-js.",
+      "composer.json does not include laravel/reverb."
+    ]
+  },
+  "phase_status": [
+    {
+      "id": "01-collaboration-event-foundation",
+      "file": "ai/modules/live-trip-collaboration/01-collaboration-event-foundation.md",
+      "status": "planned"
+    },
+    {
+      "id": "02-notification-center-and-read-state",
+      "file": "ai/modules/live-trip-collaboration/02-notification-center-and-read-state.md",
+      "status": "planned"
+    },
+    {
+      "id": "03-realtime-transport-and-channel-authorization",
+      "file": "ai/modules/live-trip-collaboration/03-realtime-transport-and-channel-authorization.md",
+      "status": "planned"
+    },
+    {
+      "id": "04-live-trip-screen-refresh",
+      "file": "ai/modules/live-trip-collaboration/04-live-trip-screen-refresh.md",
+      "status": "planned"
+    },
+    {
+      "id": "05-coverage-fallbacks-and-release-verification",
+      "file": "ai/modules/live-trip-collaboration/05-coverage-fallbacks-and-release-verification.md",
+      "status": "planned"
+    }
+  ],
+  "affected_workflows": [
+    "trip details update",
+    "itinerary item create/update/delete",
+    "reservation create/update/delete",
+    "budget cost create/update/delete",
+    "packing item changes",
+    "task changes",
+    "document changes",
+    "reminder changes",
+    "import review commits",
+    "collaborator add/remove"
+  ],
+  "planned_verification": [
+    "php artisan test --compact tests/Feature/TripManagementTest.php",
+    "php artisan test --compact tests/Feature/TripNotificationTest.php",
+    "php artisan test --compact tests/Feature/TripBroadcastChannelTest.php",
+    "npm run lint:check",
+    "npm run types:check",
+    "npm run build"
+  ],
+  "handoff": {
+    "summary": "The plan is ready. Start with centralized trip collaboration events, then add in-app notifications, then wire either Reverb/Echo push transport or Inertia polling fallback, then refresh Trips/Show.vue through partial reloads.",
+    "next_agent_steps": [
+      "Read ai/modules/live-trip-collaboration/00-master-plan.md.",
+      "Confirm whether dependency changes are allowed for Laravel Reverb and Echo.",
+      "Update this state file to in_progress before code changes.",
+      "Implement and verify phases in order."
+    ]
+  }
+}

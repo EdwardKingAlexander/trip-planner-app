@@ -4,8 +4,8 @@ Last updated: 2026-05-04
 
 ## Current Phase
 
-- Active phase: `phase-06-imports-integrations-automation`
-- Current status: `planned`
+- Active phase: `complete`
+- Current status: `verified`
 - Current owner: `codex`
 - Current blocker: `none`
 
@@ -18,8 +18,8 @@ Last updated: 2026-05-04
 | 03 | [Reservations, Dates, And Times](phase-03-reservations-dates-and-times.md) | verified | Phase 02 | Flights, hotels, transport, and activities store accurate dates, times, and time zones |
 | 04 | [Planning Utilities](phase-04-planning-utilities.md) | verified | Phase 03 | Budget, packing, documents, and checklist tools are usable |
 | 05 | [Sharing, Notifications, And Travel Day Operations](phase-05-sharing-notifications-operations.md) | verified | Phase 04 | Shared trips, reminders, and travel-day mode work end to end |
-| 06 | [Imports, Integrations, And Automation](phase-06-imports-integrations-automation.md) | planned | Phase 05 | Email/calendar/file import and automation workflows are available |
-| 07 | [Polish, Reporting, And Hardening](phase-07-polish-reporting-hardening.md) | planned | Phase 06 | The app is production-ready for personal use |
+| 06 | [Imports, Integrations, And Automation](phase-06-imports-integrations-automation.md) | verified | Phase 05 | Email/calendar/file import and automation workflows are available |
+| 07 | [Polish, Reporting, And Hardening](phase-07-polish-reporting-hardening.md) | verified | Phase 06 | The app is production-ready for personal use |
 
 ## Decision Log
 
@@ -30,6 +30,8 @@ Last updated: 2026-05-04
 | 2026-05-04 | Prioritize date, time, and time-zone correctness before integrations | Travel plans fail quickly if time data is unreliable |
 | 2026-05-04 | Build trip sharing in the first implementation pass | The hosted app is intended for two people to use together |
 | 2026-05-04 | Keep advanced import/live integration work planned after the hosted MVP | Email parsing, ICS import, and live flight APIs need provider decisions |
+| 2026-05-04 | Implement review-first imports for confirmations and ICS text | Prevents imported data from silently changing trip plans |
+| 2026-05-04 | Implement print, JSON export, ICS export, global search, and travel preferences | Completes production-readiness features without adding external API dependencies |
 
 ## Open Questions
 
@@ -58,3 +60,9 @@ When implementation begins:
 - UI supports desktop and mobile layouts.
 - Date, time, and time-zone displays are manually checked with at least two destinations in different time zones.
 - No phase is marked `shipped` until acceptance criteria in its phase file are satisfied.
+
+## Verified Build Notes
+
+- Phases 01-07 are implemented and verified for the hosted personal-use app.
+- Live flight status remains provider-ready but not connected to an external aviation API because no provider/API key has been selected.
+- Confirmation import supports pasted text review. Calendar import supports pasted ICS text review and commit.

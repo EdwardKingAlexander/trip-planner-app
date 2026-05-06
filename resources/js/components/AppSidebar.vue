@@ -7,6 +7,7 @@ import {
     ListChecks,
     Luggage,
     Plane,
+    Search,
     Share2,
 } from 'lucide-vue-next';
 import AppLogo from '@/components/AppLogo.vue';
@@ -29,6 +30,11 @@ const mainNavItems: NavItem[] = [
         title: 'Trips',
         href: '/trips',
         icon: Luggage,
+    },
+    {
+        title: 'Search',
+        href: '/trips/search',
+        icon: Search,
     },
     {
         title: 'Calendar',
@@ -66,11 +72,11 @@ const footerNavItems: NavItem[] = [];
 </script>
 
 <template>
-    <Sidebar collapsible="icon" variant="inset">
+    <Sidebar collapsible="icon" variant="inset" class="border-[#c8dde0] bg-[#f6fbfb] dark:border-[#25414a] dark:bg-[#0f1d23]">
         <SidebarHeader>
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child>
+                    <SidebarMenuButton size="lg" class="min-h-12 rounded-lg text-[#174f57] hover:bg-[#e4f5f6] dark:text-[#d6f5f1] dark:hover:bg-[#183640]" as-child>
                         <Link href="/trips">
                             <AppLogo />
                         </Link>

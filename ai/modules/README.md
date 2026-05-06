@@ -12,6 +12,14 @@ This directory is the planning and build-control area for the vacation trip mana
 6. [Phase 06 - Imports, Integrations, And Automation](phase-06-imports-integrations-automation.md)
 7. [Phase 07 - Polish, Reporting, And Hardening](phase-07-polish-reporting-hardening.md)
 
+## Production Feedback
+
+Use [production-feedback](production-feedback/00-master-plan.md) for live production testing feedback, fixes, enhancements, and release handoff state. Its durable state file is `ai/state/production-feedback.json`.
+
+## Live Trip Collaboration
+
+Use [live-trip-collaboration](live-trip-collaboration/00-master-plan.md) for realtime shared-trip notifications, private broadcast channel planning, and automatic trip screen updates. Its durable state file is `ai/state/live-trip-collaboration.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.

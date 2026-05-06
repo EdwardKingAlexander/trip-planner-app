@@ -74,6 +74,8 @@ class TripController extends Controller
             'tasks',
             'documents',
             'reminders',
+            'importBatches',
+            'automationSuggestions',
         ]);
 
         return Inertia::render('Trips/Show', [
@@ -192,6 +194,11 @@ class TripController extends Controller
             'documents' => $trip->documents,
             'reminders' => $trip->reminders,
             'collaborators' => $trip->collaborators,
+            'import_batches' => $trip->importBatches,
+            'automation_suggestions' => $trip->automationSuggestions
+                ->whereNull('accepted_at')
+                ->whereNull('dismissed_at')
+                ->values(),
         ];
     }
 }

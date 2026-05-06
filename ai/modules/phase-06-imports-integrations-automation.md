@@ -3,7 +3,7 @@
 ## Status
 
 - Phase id: `phase-06-imports-integrations-automation`
-- Status: `planned`
+- Status: `verified`
 - Depends on: Phase 05
 - Blocks: Phase 07
 - Completion gate: Users can import common travel details and use automation to reduce manual trip entry.

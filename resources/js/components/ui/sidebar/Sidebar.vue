@@ -6,6 +6,7 @@ import SheetDescription from '@/components/ui/sheet/SheetDescription.vue'
 import SheetHeader from '@/components/ui/sheet/SheetHeader.vue'
 import SheetTitle from '@/components/ui/sheet/SheetTitle.vue'
 import { SIDEBAR_WIDTH_MOBILE, useSidebar } from "./utils"
+import { computed, onMounted, ref } from 'vue'
 
 defineOptions({
   inheritAttrs: false,
@@ -18,6 +19,12 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 })
 
 const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+const isHydrated = ref(false)
+const shouldRenderMobile = computed(() => isHydrated.value && isMobile.value)
+
+onMounted(() => {
+  isHydrated.value = true
+})
 </script>
 
 <template>
@@ -30,7 +37,7 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
     <slot />
   </div>
 
-  <Sheet v-else-if="isMobile" :open="openMobile" v-bind="$attrs" @update:open="setOpenMobile">
+  <Sheet v-else-if="shouldRenderMobile" :open="openMobile" v-bind="$attrs" @update:open="setOpenMobile">
     <SheetContent
       data-sidebar="sidebar"
       data-slot="sidebar"
