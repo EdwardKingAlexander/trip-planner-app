@@ -1,10 +1,10 @@
-unnel exited with a non-zero code [1].
+Tunnel exited with a non-zero code [1].
 
 Error output:
-Wed May 6 01:38:21 UTC 2026
+Wed May 6 02:06:44 UTC 2026
 => Creating new release
 Cloning from git@github.com:EdwardKingAlexander/trip-planner-app
-Cloning into /home/forge/trip-planner-app-f618d6ig.on-forge.com/releases/68867083
+Cloning into /home/forge/trip-planner-app-f618d6ig.on-forge.com/releases/68867828
 => Linking environment file
 => Linking auth.json file
 => Linking storage directories
@@ -114,13 +114,13 @@ Package operations: 99 installs, 0 updates, 0 removals
   - Installing laravel/wayfinder (v0.1.16): Extracting archive
   0/99 [>---------------------------]   0%
  20/99 [=====>----------------------]  20%
- 34/99 [=========>------------------]  34%
- 40/99 [===========>----------------]  40%
- 54/99 [===============>------------]  54%
+ 30/99 [========>-------------------]  30%
+ 41/99 [===========>----------------]  41%
+ 56/99 [===============>------------]  56%
  60/99 [================>-----------]  60%
- 72/99 [====================>-------]  72%
- 81/99 [======================>-----]  81%
- 90/99 [=========================>--]  90%
+ 70/99 [===================>--------]  70%
+ 82/99 [=======================>----]  82%
+ 91/99 [=========================>--]  91%
  99/99 [============================] 100%
 Generating optimized autoload files
 > Illuminate\Foundation\ComposerScripts::postAutoloadDump
@@ -141,10 +141,10 @@ Use the `composer fund` command to find out more!
 
    INFO  Caching framework bootstrap, configuration, and metadata.  
 
-  config ........................................................ 22.50ms DONE
-  events ......................................................... 2.25ms DONE
-  routes ........................................................ 41.20ms DONE
-  views ......................................................... 47.36ms DONE
+  config ........................................................ 26.15ms DONE
+  events ......................................................... 2.82ms DONE
+  routes ........................................................ 49.90ms DONE
+  views ......................................................... 76.25ms DONE
 
 
    INFO  The [public/storage] link has been connected to [storage/app/public].  
@@ -152,7 +152,8 @@ Use the `composer fund` command to find out more!
 
    INFO  Running migrations.  
 
-  2026_05_04_000002_create_imports_automation_and_preferences ... 29.26ms FAIL
+  2026_05_03_000000_backfill_imports_migration_record ........... 70.11ms DONE
+  2026_05_04_000002_create_imports_automation_and_preferences .. 174.38ms FAIL
 
 In Connection.php line 841:
                                                                                
@@ -170,4 +171,4 @@ In Connection.php line 841:
 In Connection.php line 587:
                                                                                
   SQLSTATE[42S01]: Base table or view already exists: 1050 Table 'trip_import  
-  _batches' already exists        
+  _batches' already exists     
