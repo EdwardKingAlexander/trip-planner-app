@@ -1,77 +1,89 @@
 {
   "module": "live-trip-collaboration",
-  "status": "planned",
-  "last_updated": "2026-05-06",
+  "status": "verified",
+  "last_updated": "2026-05-05",
   "current_phase": {
-    "id": "01-collaboration-event-foundation",
-    "status": "planned",
-    "next_action": "Confirm realtime dependency path, then implement centralized trip collaboration events before notification fan-out."
+    "id": "05-coverage-fallbacks-and-release-verification",
+    "status": "verified",
+    "next_action": "Optional upgrade path: swap polling for Reverb + Echo if concurrency outgrows the 10s bell / 5s trip-page poll cadence."
   },
   "transport_decision": {
     "preferred": "laravel-reverb-plus-echo",
+    "selected": "inertia-polling-plus-partial-reloads",
     "fallback": "inertia-polling-plus-partial-reloads",
     "dependency_approval_required": true,
-    "current_repo_evidence": [
-      "No routes/channels.php file exists.",
-      "No config/broadcasting.php file exists.",
-      "package.json does not include laravel-echo or pusher-js.",
-      "composer.json does not include laravel/reverb."
+    "selection_rationale": "Polling at 10s for the bell and 5s for the open trip page meets near-realtime needs without adding a Reverb daemon, laravel-echo, or pusher-js. Easy to swap to Reverb later by replacing usePoll calls with Echo channel listeners.",
+    "implementation_evidence": [
+      "resources/js/layouts/app/AppSidebarLayout.vue uses usePoll(10000, { only: ['notifications'] }).",
+      "resources/js/composables/useTripRealtime.ts uses usePoll(5000, { only: ['trip'] }) and toasts when activity_version advances.",
+      "app/Http/Middleware/HandleInertiaRequests.php shares notifications.unread_count and notifications.recent."
     ]
   },
   "phase_status": [
     {
       "id": "01-collaboration-event-foundation",
       "file": "ai/modules/live-trip-collaboration/01-collaboration-event-foundation.md",
-      "status": "planned"
+      "status": "verified"
     },
     {
       "id": "02-notification-center-and-read-state",
       "file": "ai/modules/live-trip-collaboration/02-notification-center-and-read-state.md",
-      "status": "planned"
+      "status": "verified"
     },
     {
       "id": "03-realtime-transport-and-channel-authorization",
       "file": "ai/modules/live-trip-collaboration/03-realtime-transport-and-channel-authorization.md",
-      "status": "planned"
+      "status": "verified"
     },
     {
       "id": "04-live-trip-screen-refresh",
       "file": "ai/modules/live-trip-collaboration/04-live-trip-screen-refresh.md",
-      "status": "planned"
+      "status": "verified"
     },
     {
       "id": "05-coverage-fallbacks-and-release-verification",
       "file": "ai/modules/live-trip-collaboration/05-coverage-fallbacks-and-release-verification.md",
-      "status": "planned"
+      "status": "verified"
     }
   ],
   "affected_workflows": [
     "trip details update",
-    "itinerary item create/update/delete",
-    "reservation create/update/delete",
-    "budget cost create/update/delete",
-    "packing item changes",
-    "task changes",
-    "document changes",
-    "reminder changes",
-    "import review commits",
+    "itinerary item create/update",
+    "reservation create/update",
+    "budget cost create/update",
+    "packing item create/update",
+    "task create/update",
+    "document create/update",
+    "reminder create/update",
+    "import commit/discard",
     "collaborator add/remove"
   ],
-  "planned_verification": [
-    "php artisan test --compact tests/Feature/TripManagementTest.php",
-    "php artisan test --compact tests/Feature/TripNotificationTest.php",
-    "php artisan test --compact tests/Feature/TripBroadcastChannelTest.php",
-    "npm run lint:check",
-    "npm run types:check",
-    "npm run build"
+  "verification": [
+    {"command": "php artisan test --compact", "status": "passed", "result": "62 tests, 234 assertions"},
+    {"command": "php artisan test --compact --filter=TripNotification", "status": "passed", "result": "7 tests, 32 assertions"},
+    {"command": "vendor/bin/pint --dirty --format agent", "status": "passed", "result": "no style violations"},
+    {"command": "npm run lint:check", "status": "passed", "result": "no lint errors"},
+    {"command": "npm run types:check", "status": "passed", "result": "no type errors"},
+    {"command": "npm run build", "status": "passed", "result": "production bundle built in ~3.6s"}
+  ],
+  "implementation_summary": [
+    "Phase 01: TripCollaborationEventService records every mutation as a TripActivityEvent and fans out database notifications to every participant except the actor.",
+    "Phase 02: Created NotificationController with index/read/read-all routes, shared notifications.unread_count + recent[] via HandleInertiaRequests, and added a NotificationBell dropdown in AppSidebarHeader.",
+    "Phase 03: Selected polling fallback. AppSidebarLayout polls notifications every 10s.",
+    "Phase 04: useTripRealtime polls the open trip every 5s and toasts when activity_version advances and the actor is not the current user.",
+    "Phase 05: Added 7 feature tests covering fan-out, actor exclusion, shared payload shape, mark-read, mark-all, polling cursor, and stranger isolation."
+  ],
+  "release_notes": [
+    "No new infrastructure required. Notifications and live updates run on the existing Laravel + Inertia stack via polling.",
+    "To upgrade to push later: install laravel/reverb + laravel-echo + pusher-js, add routes/channels.php with private-trips.{tripId} authorized through Trip::visibleTo(), and replace the usePoll calls with Echo.private(...).listen(...).",
+    "Notifications are stored in the standard Laravel database notifications table.",
+    "Polling cadence: 10s for the bell (all authenticated pages); 5s for an open trip page."
   ],
   "handoff": {
-    "summary": "The plan is ready. Start with centralized trip collaboration events, then add in-app notifications, then wire either Reverb/Echo push transport or Inertia polling fallback, then refresh Trips/Show.vue through partial reloads.",
+    "summary": "Live trip collaboration is implemented in polling mode and verified end-to-end. Bell shows unread count, dropdown lists recent items, mark-read works, open trip pages refresh on remote changes with a toast.",
     "next_agent_steps": [
-      "Read ai/modules/live-trip-collaboration/00-master-plan.md.",
-      "Confirm whether dependency changes are allowed for Laravel Reverb and Echo.",
-      "Update this state file to in_progress before code changes.",
-      "Implement and verify phases in order."
+      "If realtime upgrade requested, install Reverb + Echo and replace usePoll calls.",
+      "If notification surface grows, paginate /notifications instead of capping at 20."
     ]
   }
 }

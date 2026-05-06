@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
+use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -46,6 +47,45 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'notifications' => fn () => $this->notificationsPayload($request),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function notificationsPayload(Request $request): array
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return ['unread_count' => 0, 'recent' => []];
+        }
+
+        $recent = $user->notifications()
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(function (DatabaseNotification $notification) {
+                $data = $notification->data ?? [];
+
+                return [
+                    'id' => $notification->id,
+                    'read_at' => $notification->read_at?->toIso8601String(),
+                    'created_at' => $notification->created_at?->toIso8601String(),
+                    'trip_id' => $data['trip_id'] ?? null,
+                    'trip_name' => $data['trip_name'] ?? null,
+                    'actor_first_name' => $data['actor_first_name'] ?? $data['actor_name'] ?? null,
+                    'changed_area' => $data['changed_area'] ?? null,
+                    'event_type' => $data['event_type'] ?? null,
+                    'summary' => $data['summary'] ?? null,
+                ];
+            })
+            ->all();
+
+        return [
+            'unread_count' => $user->unreadNotifications()->count(),
+            'recent' => $recent,
         ];
     }
 }

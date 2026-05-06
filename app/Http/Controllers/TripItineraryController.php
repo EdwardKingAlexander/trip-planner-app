@@ -4,31 +4,48 @@ namespace App\Http\Controllers;
 
 use App\Models\ItineraryItem;
 use App\Models\Trip;
+use App\Services\TripCollaborationEventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class TripItineraryController extends Controller
 {
-    public function store(Request $request, Trip $trip): RedirectResponse
+    public function store(Request $request, Trip $trip, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
 
         $validated = $this->validatedItinerary($request, $trip);
 
-        $trip->itineraryItems()->create($validated + [
+        $item = $trip->itineraryItems()->create($validated + [
             'sort_order' => $trip->itineraryItems()->count(),
         ]);
+
+        $events->record(
+            trip: $trip,
+            eventType: 'itinerary.created',
+            changedArea: 'itinerary',
+            summary: "added itinerary item: {$item->title}",
+            subject: $item,
+        );
 
         return back()->with('success', 'Itinerary item added.');
     }
 
-    public function update(Request $request, Trip $trip, ItineraryItem $itineraryItem): RedirectResponse
+    public function update(Request $request, Trip $trip, ItineraryItem $itineraryItem, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
         abort_unless($itineraryItem->trip_id === $trip->id, 404);
 
         $itineraryItem->update($this->validatedItinerary($request, $trip));
+
+        $events->record(
+            trip: $trip,
+            eventType: 'itinerary.updated',
+            changedArea: 'itinerary',
+            summary: "updated itinerary item: {$itineraryItem->title}",
+            subject: $itineraryItem,
+        );
 
         return back()->with('success', 'Itinerary item updated.');
     }

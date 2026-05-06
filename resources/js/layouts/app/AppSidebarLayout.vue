@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePoll } from '@inertiajs/vue3';
 import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
@@ -12,6 +13,12 @@ type Props = {
 
 withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
+});
+
+// Refresh the shared notifications payload every 10s. The page's other props
+// stay untouched, so this won't interfere with form state or scroll position.
+usePoll(10000, {
+    only: ['notifications'],
 });
 </script>
 

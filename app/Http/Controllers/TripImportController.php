@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Trip;
 use App\Models\TripImportBatch;
 use App\Services\TripAutomationService;
+use App\Services\TripCollaborationEventService;
 use App\Services\TripImportParser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class TripImportController extends Controller
         return back()->with('success', 'Import parsed and ready for review.');
     }
 
-    public function commit(Trip $trip, TripImportBatch $importBatch, TripAutomationService $automation): RedirectResponse
+    public function commit(Trip $trip, TripImportBatch $importBatch, TripAutomationService $automation, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
         abort_unless($importBatch->trip_id === $trip->id, 404);
@@ -91,10 +92,18 @@ class TripImportController extends Controller
 
         $automation->refresh($trip);
 
+        $events->record(
+            trip: $trip,
+            eventType: 'import.committed',
+            changedArea: 'imports',
+            summary: "committed import batch #{$importBatch->id}",
+            subject: $importBatch,
+        );
+
         return back()->with('success', 'Import committed to the trip.');
     }
 
-    public function discard(Trip $trip, TripImportBatch $importBatch): RedirectResponse
+    public function discard(Trip $trip, TripImportBatch $importBatch, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
         abort_unless($importBatch->trip_id === $trip->id, 404);
@@ -103,6 +112,14 @@ class TripImportController extends Controller
             'status' => 'discarded',
             'reviewed_at' => now(),
         ]);
+
+        $events->record(
+            trip: $trip,
+            eventType: 'import.discarded',
+            changedArea: 'imports',
+            summary: "discarded import batch #{$importBatch->id}",
+            subject: $importBatch,
+        );
 
         return back()->with('success', 'Import discarded.');
     }

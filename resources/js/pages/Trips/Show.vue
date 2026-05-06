@@ -21,6 +21,7 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { useTripRealtime } from '@/composables/useTripRealtime';
 import { store as storeCost, update as updateCost } from '@/routes/trips/costs';
 import { store as storeDocument, update as updateDocument } from '@/routes/trips/documents';
 import { store as storeItineraryItem, update as updateItineraryItem } from '@/routes/trips/itinerary-items';
@@ -40,6 +41,16 @@ type Trip = {
     length: string;
     can_edit: boolean;
     can_share: boolean;
+    activity_version?: number;
+    last_event?: {
+        id: number;
+        changed_area: string | null;
+        event_type: string | null;
+        summary: string | null;
+        actor_first_name: string | null;
+        actor_user_id: number | null;
+        created_at: string | null;
+    } | null;
     days: Array<{
         id: number;
         date: string;
@@ -55,6 +66,7 @@ type Trip = {
             timezone: string;
             status: string;
             is_all_day: boolean;
+            last_edited_by?: string | null;
         }>;
     }>;
     reservations: Array<Record<string, any>>;
@@ -78,6 +90,8 @@ defineOptions({
         ],
     },
 });
+
+useTripRealtime();
 
 const activePanel = ref('itinerary');
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';

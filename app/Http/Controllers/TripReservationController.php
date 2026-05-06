@@ -4,28 +4,39 @@ namespace App\Http\Controllers;
 
 use App\Models\Reservation;
 use App\Models\Trip;
+use App\Services\TripCollaborationEventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class TripReservationController extends Controller
 {
-    public function store(Request $request, Trip $trip): RedirectResponse
+    public function store(Request $request, Trip $trip, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
 
         $validated = $this->validatedReservation($request);
 
-        DB::transaction(function () use ($trip, $validated) {
+        $reservation = DB::transaction(function () use ($trip, $validated) {
             $reservation = $trip->reservations()->create($this->reservationAttributes($validated));
 
             $this->syncReservationDetails($reservation, $validated);
+
+            return $reservation;
         });
+
+        $events->record(
+            trip: $trip,
+            eventType: 'reservation.created',
+            changedArea: 'reservations',
+            summary: "added reservation: {$reservation->title}",
+            subject: $reservation,
+        );
 
         return back()->with('success', 'Reservation added.');
     }
 
-    public function update(Request $request, Trip $trip, Reservation $reservation): RedirectResponse
+    public function update(Request $request, Trip $trip, Reservation $reservation, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
         abort_unless($reservation->trip_id === $trip->id, 404);
@@ -37,6 +48,14 @@ class TripReservationController extends Controller
 
             $this->syncReservationDetails($reservation, $validated);
         });
+
+        $events->record(
+            trip: $trip,
+            eventType: 'reservation.updated',
+            changedArea: 'reservations',
+            summary: "updated reservation: {$reservation->title}",
+            subject: $reservation,
+        );
 
         return back()->with('success', 'Reservation updated.');
     }

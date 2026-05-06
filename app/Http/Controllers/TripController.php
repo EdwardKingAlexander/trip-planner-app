@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Trip;
+use App\Services\TripCollaborationEventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -84,7 +85,7 @@ class TripController extends Controller
         ]);
     }
 
-    public function update(Request $request, Trip $trip): RedirectResponse
+    public function update(Request $request, Trip $trip, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
 
@@ -93,6 +94,14 @@ class TripController extends Controller
             $trip->update($validated);
             $trip->syncDays($validated['starts_on'], $validated['ends_on']);
         });
+
+        $events->record(
+            trip: $trip->fresh(),
+            eventType: 'trip.updated',
+            changedArea: 'trip',
+            summary: "updated trip details for {$trip->name}",
+            subject: $trip,
+        );
 
         return back()->with('success', 'Trip updated.');
     }
@@ -148,10 +157,22 @@ class TripController extends Controller
     {
         $trip->loadCount(['days', 'itineraryItems', 'reservations', 'tasks', 'documents', 'collaborators']);
 
+        $latestEvent = $trip->activityEvents()->with('actor')->latest('id')->first();
+
         return [
             ...$this->tripSummary($trip, $userId),
             'can_edit' => $trip->canBeEditedBy(request()->user()),
             'can_share' => $trip->user_id === $userId,
+            'activity_version' => (int) ($latestEvent?->id ?? 0),
+            'last_event' => $latestEvent ? [
+                'id' => $latestEvent->id,
+                'changed_area' => $latestEvent->changed_area,
+                'event_type' => $latestEvent->event_type,
+                'summary' => $latestEvent->summary,
+                'actor_first_name' => $latestEvent->actor?->first_name,
+                'actor_user_id' => $latestEvent->user_id,
+                'created_at' => $latestEvent->created_at?->toIso8601String(),
+            ] : null,
             'days' => $trip->days->map(fn ($day) => [
                 'id' => $day->id,
                 'date' => $day->date->toDateString(),

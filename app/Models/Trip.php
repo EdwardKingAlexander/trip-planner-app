@@ -93,6 +93,20 @@ class Trip extends Model
         return $this->hasMany(TripAutomationSuggestion::class)->latest();
     }
 
+    public function activityEvents(): HasMany
+    {
+        return $this->hasMany(TripActivityEvent::class);
+    }
+
+    /**
+     * Latest collaboration event id for this trip. Used as a polling cursor
+     * so the frontend can tell whether a remote participant changed anything.
+     */
+    public function activityVersion(): int
+    {
+        return (int) $this->activityEvents()->max('id');
+    }
+
     public function scopeVisibleTo($query, User $user)
     {
         $query->where('user_id', $user->id)
