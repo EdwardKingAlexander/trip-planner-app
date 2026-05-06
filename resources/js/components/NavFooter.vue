@@ -5,6 +5,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
@@ -15,6 +16,14 @@ type Props = {
 };
 
 defineProps<Props>();
+
+const { isMobile, setOpenMobile } = useSidebar();
+
+const closeMobileNavigation = () => {
+    if (isMobile.value) {
+        setOpenMobile(false);
+    }
+};
 </script>
 
 <template>
@@ -32,6 +41,7 @@ defineProps<Props>();
                             :href="toUrl(item.href)"
                             target="_blank"
                             rel="noopener noreferrer"
+                            @click="closeMobileNavigation"
                         >
                             <component :is="item.icon" />
                             <span>{{ item.title }}</span>

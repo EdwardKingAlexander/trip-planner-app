@@ -183,6 +183,7 @@ const panels = [
 const plannedTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.planned_amount ?? 0), 0));
 const actualTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.actual_amount ?? 0), 0));
 const completedTasks = computed(() => props.trip.tasks.filter((task) => task.completed_at).length);
+const isShared = computed(() => (props.trip.collaborators?.length ?? 0) > 0);
 
 const post = (form: ReturnType<typeof useForm>, url: string, resetFields?: string[]) => {
     form.post(url, {
@@ -365,6 +366,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         </div>
                                         <p v-if="item.location_name" class="mt-2 text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ item.location_name }}</p>
                                         <p v-if="item.description" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-sm text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ item.description }}</p>
+                                        <p v-if="isShared && item.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ item.last_edited_by }}</p>
                                     </template>
                                 </div>
                             </div>
@@ -472,6 +474,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <div class="mt-2 text-sm">{{ formatDateTime(reservation.starts_at, reservation.starts_timezone) }} - {{ formatDateTime(reservation.ends_at, reservation.ends_timezone) }}</div>
                                         <p v-if="reservation.address" class="mt-2 text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ reservation.address }}</p>
                                         <p v-if="reservation.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-sm text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ reservation.notes }}</p>
+                                        <p v-if="isShared && reservation.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ reservation.last_edited_by }}</p>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <span class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">{{ reservation.status }}</span>
@@ -590,6 +593,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     </div>
                                 </div>
                                 <p v-if="cost.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ cost.notes }}</p>
+                                <p v-if="isShared && cost.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ cost.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
@@ -651,6 +655,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     </div>
                                 </div>
                                 <p v-if="item.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ item.notes }}</p>
+                                <p v-if="isShared && item.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ item.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
@@ -707,6 +712,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     </div>
                                 </div>
                                 <p v-if="task.description" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ task.description }}</p>
+                                <p v-if="isShared && task.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ task.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
@@ -753,6 +759,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('document', document)">Edit</Button>
                                 </div>
                                 <p v-if="document.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ document.notes }}</p>
+                                <p v-if="isShared && document.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ document.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
@@ -883,6 +890,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('reminder', reminder)">Edit</Button>
                                     </div>
                                     <p v-if="reminder.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ reminder.notes }}</p>
+                                    <p v-if="isShared && reminder.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ reminder.last_edited_by }}</p>
                                 </template>
                             </div>
                             <p v-if="!trip.reminders.length" class="text-sm text-[#52666b] dark:text-[#b8d5d2]">No reminders yet.</p>

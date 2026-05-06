@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Concerns\TracksAuthor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TripCost extends Model
 {
+    use TracksAuthor;
+
     protected $fillable = ['trip_id', 'reservation_id', 'category', 'label', 'planned_amount', 'actual_amount', 'currency', 'paid_at', 'notes'];
 
     protected function casts(): array

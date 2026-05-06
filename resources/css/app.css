@@ -173,11 +173,11 @@
 
 @layer components {
     .travel-page {
-        @apply min-h-full bg-[#eef8f7] text-[#142326] dark:bg-[#081419] dark:text-[#ecfbf8];
+        @apply min-h-full min-w-0 overflow-x-clip bg-[#eef8f7] text-[#142326] dark:bg-[#081419] dark:text-[#ecfbf8];
     }
 
     .travel-container {
-        @apply mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6 lg:p-8;
+        @apply mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-6 p-4 sm:p-6 lg:p-8;
     }
 
     .travel-panel {

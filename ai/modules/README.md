@@ -24,6 +24,10 @@ Use [live-trip-collaboration](live-trip-collaboration/00-master-plan.md) for rea
 
 Use [editable-trip-entries](editable-trip-entries/00-master-plan.md) for post-creation editing and visible notes on itinerary, reservations, budget, packing, tasks, documents, and reminders. Its durable state file is `ai/state/editable-trip-entries.json`.
 
+## Scroll Issue
+
+Use [scroll-issue](scroll-issue/00-master-plan.md) for authenticated layout scroll ownership, sidebar/offcanvas behavior, and page overflow hardening. Its durable state file is `ai/state/scroll-issue.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.

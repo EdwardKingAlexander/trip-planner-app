@@ -1,0 +1,173 @@
+{
+  "module": "scroll-issue",
+  "status": "verified_programmatic",
+  "last_updated": "2026-05-06",
+  "current_phase": {
+    "id": "05-verification-and-release",
+    "status": "verified_programmatic",
+    "next_action": "No implementation work remains. Optional follow-up is a manual authenticated viewport pass in the user's browser."
+  },
+  "phase_status": [
+    {
+      "id": "01-scroll-ownership-audit",
+      "file": "ai/modules/scroll-issue/01-scroll-ownership-audit.md",
+      "status": "verified"
+    },
+    {
+      "id": "02-desktop-single-scroll-shell",
+      "file": "ai/modules/scroll-issue/02-desktop-single-scroll-shell.md",
+      "status": "verified"
+    },
+    {
+      "id": "03-mobile-offcanvas-navigation",
+      "file": "ai/modules/scroll-issue/03-mobile-offcanvas-navigation.md",
+      "status": "verified"
+    },
+    {
+      "id": "04-page-overflow-hardening",
+      "file": "ai/modules/scroll-issue/04-page-overflow-hardening.md",
+      "status": "verified"
+    },
+    {
+      "id": "05-verification-and-release",
+      "file": "ai/modules/scroll-issue/05-verification-and-release.md",
+      "status": "verified_programmatic"
+    }
+  ],
+  "audit_findings": [
+    {
+      "file": "resources/js/components/ui/sidebar/Sidebar.vue",
+      "finding": "Desktop branch uses fixed inset-y-0 h-svh and a separate spacer, making the sidebar independent of document flow."
+    },
+    {
+      "file": "resources/js/components/ui/sidebar/SidebarContent.vue",
+      "finding": "Default overflow-auto creates a nested vertical scroll container inside the sidebar."
+    },
+    {
+      "file": "resources/js/components/ui/sidebar/SidebarProvider.vue",
+      "finding": "Wrapper uses min-h-svh; acceptable for page height, but it must not combine with fixed-height child scroll containers."
+    },
+    {
+      "file": "resources/js/layouts/app/AppSidebarLayout.vue",
+      "finding": "AppContent is passed overflow-x-hidden; this is horizontal-only but the shell needs min-w-0 rather than independent vertical overflow."
+    },
+    {
+      "file": "resources/js/pages/Dashboard.vue",
+      "finding": "Dashboard has overflow-x-auto and h-full; mark for page hardening if still present after shell fixes."
+    }
+  ],
+  "scroll_owner_decision": {
+    "desktop": "The document/page is the only normal vertical scroll owner.",
+    "mobile": "The document/page owns normal scrolling; the sidebar sheet owns temporary overlay interaction only while open.",
+    "allowed_inner_scroll": [
+      "modal/dialog/dropdown/select overlays",
+      "intentional horizontal overflow for dense controls"
+    ]
+  },
+  "verification": [
+    {
+      "phase": "01-scroll-ownership-audit",
+      "command": "rg \"overflow-|overflow:|h-svh|min-h-svh|max-h|fixed|sticky|Sheet|Sidebar|scroll|h-screen|min-h-screen\" resources/js resources/css",
+      "status": "passed",
+      "result": "Identified fixed sidebar, SidebarContent overflow-auto, and page-level overflow candidates."
+    },
+    {
+      "phase": "02-desktop-single-scroll-shell",
+      "command": "npm run types:check",
+      "status": "passed",
+      "result": "Vue TypeScript check passed after shell changes."
+    },
+    {
+      "phase": "02-desktop-single-scroll-shell",
+      "command": "npm run lint:check",
+      "status": "passed",
+      "result": "ESLint passed after shell changes."
+    },
+    {
+      "phase": "03-mobile-offcanvas-navigation",
+      "command": "npm run types:check",
+      "status": "passed",
+      "result": "Vue TypeScript check passed after mobile offcanvas breakpoint and close behavior."
+    },
+    {
+      "phase": "03-mobile-offcanvas-navigation",
+      "command": "npm run lint:check",
+      "status": "passed",
+      "result": "ESLint passed after mobile offcanvas changes."
+    },
+    {
+      "phase": "04-page-overflow-hardening",
+      "command": "npm run lint:check",
+      "status": "passed",
+      "result": "ESLint passed after page overflow hardening."
+    },
+    {
+      "phase": "04-page-overflow-hardening",
+      "command": "npm run build",
+      "status": "passed",
+      "result": "Vite production build passed and regenerated Wayfinder route files."
+    },
+    {
+      "phase": "04-page-overflow-hardening",
+      "command": "npm run types:check",
+      "status": "passed",
+      "result": "Vue TypeScript check passed after route regeneration."
+    },
+    {
+      "phase": "05-verification-and-release",
+      "command": "php artisan test --compact",
+      "status": "passed",
+      "result": "51 tests, 186 assertions."
+    },
+    {
+      "phase": "05-verification-and-release",
+      "command": "npm run lint:check",
+      "status": "passed",
+      "result": "ESLint passed."
+    },
+    {
+      "phase": "05-verification-and-release",
+      "command": "npm run build",
+      "status": "passed",
+      "result": "Vite production build passed and regenerated Wayfinder route files."
+    },
+    {
+      "phase": "05-verification-and-release",
+      "command": "npm run types:check",
+      "status": "passed",
+      "result": "Vue TypeScript check passed after build regenerated route files."
+    },
+    {
+      "phase": "05-verification-and-release",
+      "command": "composer lint:check",
+      "status": "passed",
+      "result": "Pint style check passed."
+    },
+    {
+      "phase": "05-verification-and-release",
+      "command": "rg -n \"fixed inset-y-0|overflow-auto|overflow-y-auto|overflow-y-scroll|h-svh\" scoped shell/page files",
+      "status": "passed",
+      "result": "No fixed desktop sidebar or vertical auto-scroll owners remain in the scoped shell/page files. Remaining h-svh values are the non-scrolling sticky desktop sidebar height and the outer sidebar wrapper minimum height."
+    },
+    {
+      "phase": "05-verification-and-release",
+      "command": "headless Chrome CDP authenticated viewport check",
+      "status": "blocked",
+      "result": "Chrome was available, but existing local user credentials did not authenticate. Avoided database writes or password changes per module safety rules."
+    }
+  ],
+  "implementation_summary": [
+    "Desktop sidebar now participates in normal document flow with sticky positioning instead of a fixed inset viewport column.",
+    "SidebarContent no longer defaults to overflow-auto, removing the sidebar-owned vertical scrollbar.",
+    "Tablet/mobile breakpoint now treats widths below 1024px as offcanvas navigation.",
+    "Mobile sidebar links close the offcanvas menu after navigation.",
+    "Authenticated page wrappers were hardened with min-w-0 and horizontal clipping where appropriate."
+  ],
+  "handoff": {
+    "summary": "Scroll issue implementation is complete and programmatically verified. Manual authenticated browser viewport verification remains optional because the session could not authenticate with existing local users without database writes.",
+    "next_agent_steps": [
+      "If the user sees a remaining scroll issue, perform a manual viewport pass in their already authenticated browser.",
+      "Do not reintroduce fixed desktop sidebar columns or vertical overflow-auto wrappers in authenticated shell components."
+    ]
+  }
+}

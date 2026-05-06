@@ -30,8 +30,8 @@ const submit = () => {
 <template>
     <Head title="Trip Search" />
 
-    <div class="min-h-full bg-[#f7f3ec] p-4 text-[#211f1a] sm:p-6 lg:p-8 dark:bg-[#11100e] dark:text-[#f3efe7]">
-        <div class="mx-auto max-w-5xl space-y-6">
+    <div class="min-h-full min-w-0 overflow-x-clip bg-[#f7f3ec] p-4 text-[#211f1a] sm:p-6 lg:p-8 dark:bg-[#11100e] dark:text-[#f3efe7]">
+        <div class="mx-auto min-w-0 max-w-5xl space-y-6">
             <header class="rounded-lg border border-[#d8cdbb] bg-white p-6 dark:border-[#3b352d] dark:bg-[#181613]">
                 <div class="flex items-center gap-2 text-sm font-medium uppercase tracking-[0.16em] text-[#1b6b6f]">
                     <Search class="h-4 w-4" />
@@ -51,8 +51,8 @@ const submit = () => {
                     :href="`/trips/${trip.id}`"
                     class="block rounded-lg border border-[#d8cdbb] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-[#3b352d] dark:bg-[#181613]"
                 >
-                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
+                    <div class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="min-w-0">
                             <div class="flex items-center gap-2 text-sm font-medium text-[#1b6b6f]">
                                 <Luggage class="h-4 w-4" />
                                 {{ trip.destination }}

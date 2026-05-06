@@ -22,6 +22,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import type { NavItem } from '@/types';
 
@@ -69,6 +70,13 @@ const mainNavItems: NavItem[] = [
 ];
 
 const footerNavItems: NavItem[] = [];
+const { isMobile, setOpenMobile } = useSidebar();
+
+const closeMobileNavigation = () => {
+    if (isMobile.value) {
+        setOpenMobile(false);
+    }
+};
 </script>
 
 <template>
@@ -77,7 +85,7 @@ const footerNavItems: NavItem[] = [];
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" class="min-h-12 rounded-lg text-[#174f57] hover:bg-[#e4f5f6] dark:text-[#d6f5f1] dark:hover:bg-[#183640]" as-child>
-                        <Link href="/trips">
+                        <Link href="/trips" @click="closeMobileNavigation">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>

@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Concerns\TracksAuthor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ItineraryItem extends Model
 {
+    use TracksAuthor;
+
     protected $fillable = [
         'trip_id',
         'trip_day_id',

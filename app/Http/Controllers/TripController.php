@@ -66,14 +66,15 @@ class TripController extends Controller
 
         $trip->load([
             'collaborators',
-            'days.itineraryItems',
+            'days.itineraryItems.updatedBy',
             'reservations.flightSegments',
             'reservations.lodgingStay',
-            'costs',
-            'packingItems',
-            'tasks',
-            'documents',
-            'reminders',
+            'reservations.updatedBy',
+            'costs.updatedBy',
+            'packingItems.updatedBy',
+            'tasks.updatedBy',
+            'documents.updatedBy',
+            'reminders.updatedBy',
             'importBatches',
             'automationSuggestions',
         ]);
@@ -167,6 +168,7 @@ class TripController extends Controller
                     'timezone' => $item->timezone,
                     'status' => $item->status,
                     'is_all_day' => $item->is_all_day,
+                    'last_edited_by' => $this->editorName($item),
                 ]),
             ]),
             'reservations' => $trip->reservations->map(fn ($reservation) => [
@@ -187,12 +189,28 @@ class TripController extends Controller
                 'notes' => $reservation->notes,
                 'flight_segments' => $reservation->flightSegments,
                 'lodging_stay' => $reservation->lodgingStay,
+                'last_edited_by' => $this->editorName($reservation),
             ]),
-            'costs' => $trip->costs,
-            'packing_items' => $trip->packingItems,
-            'tasks' => $trip->tasks,
-            'documents' => $trip->documents,
-            'reminders' => $trip->reminders,
+            'costs' => $trip->costs->map(fn ($cost) => [
+                ...$cost->toArray(),
+                'last_edited_by' => $this->editorName($cost),
+            ]),
+            'packing_items' => $trip->packingItems->map(fn ($item) => [
+                ...$item->toArray(),
+                'last_edited_by' => $this->editorName($item),
+            ]),
+            'tasks' => $trip->tasks->map(fn ($task) => [
+                ...$task->toArray(),
+                'last_edited_by' => $this->editorName($task),
+            ]),
+            'documents' => $trip->documents->map(fn ($document) => [
+                ...$document->toArray(),
+                'last_edited_by' => $this->editorName($document),
+            ]),
+            'reminders' => $trip->reminders->map(fn ($reminder) => [
+                ...$reminder->toArray(),
+                'last_edited_by' => $this->editorName($reminder),
+            ]),
             'collaborators' => $trip->collaborators,
             'import_batches' => $trip->importBatches,
             'automation_suggestions' => $trip->automationSuggestions
@@ -200,5 +218,12 @@ class TripController extends Controller
                 ->whereNull('dismissed_at')
                 ->values(),
         ];
+    }
+
+    private function editorName($model): ?string
+    {
+        $editor = $model->updatedBy;
+
+        return $editor?->first_name !== '' ? $editor?->first_name : null;
     }
 }

@@ -34,14 +34,14 @@ const { isCurrentOrParentUrl } = useCurrentUrl();
 </script>
 
 <template>
-    <div class="px-4 py-6">
+    <div class="min-w-0 px-4 py-6">
         <Heading
             title="Settings"
             description="Manage your profile and account settings"
         />
 
-        <div class="flex flex-col lg:flex-row lg:space-x-12">
-            <aside class="w-full max-w-xl lg:w-48">
+        <div class="flex min-w-0 flex-col lg:flex-row lg:space-x-12">
+            <aside class="w-full max-w-xl shrink-0 lg:w-48">
                 <nav
                     class="flex flex-col space-y-1 space-x-0"
                     aria-label="Settings"
@@ -66,8 +66,8 @@ const { isCurrentOrParentUrl } = useCurrentUrl();
 
             <Separator class="my-6 lg:hidden" />
 
-            <div class="flex-1 md:max-w-2xl">
-                <section class="max-w-xl space-y-12">
+            <div class="min-w-0 flex-1 md:max-w-2xl">
+                <section class="max-w-xl min-w-0 space-y-12">
                     <slot />
                 </section>
             </div>

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Concerns\TracksAuthor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PackingItem extends Model
 {
+    use TracksAuthor;
+
     protected $fillable = ['trip_id', 'traveler_name', 'category', 'label', 'quantity', 'is_packed', 'sort_order', 'notes'];
 
     protected function casts(): array

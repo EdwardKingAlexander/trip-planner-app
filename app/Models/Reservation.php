@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\TracksAuthor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Reservation extends Model
 {
+    use TracksAuthor;
+
     protected $fillable = [
         'trip_id',
         'itinerary_item_id',
