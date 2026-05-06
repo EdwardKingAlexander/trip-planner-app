@@ -362,7 +362,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                             </select>
                                             <textarea v-model="editData.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                             <div class="flex gap-2">
-                                                <Button size="sm" class="travel-button-primary">Save</Button>
+                                                <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
                                                 <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
                                             </div>
                                         </form>
@@ -412,7 +412,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <option value="custom">Custom</option>
                             </select>
                             <textarea v-model="itineraryForm.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
-                            <Button class="travel-button-primary">Add item</Button>
+                            <Button type="submit" class="travel-button-primary" :disabled="itineraryForm.processing">Add item</Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -473,7 +473,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     </div>
                                     <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                     <div class="flex gap-2">
-                                        <Button size="sm" class="travel-button-primary">Save</Button>
+                                        <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
                                         <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
                                     </div>
                                 </form>
@@ -556,7 +556,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             </template>
                             <Input class="travel-touch" v-model="reservationForm.address" placeholder="Address" />
                             <textarea v-model="reservationForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
-                            <Button class="travel-button-primary">Add reservation</Button>
+                            <Button type="submit" class="travel-button-primary" :disabled="reservationForm.processing">Add reservation</Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -594,7 +594,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <Input class="travel-touch" v-model="editData.currency" maxlength="3" placeholder="USD" />
                                 <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                 <div class="flex gap-2">
-                                    <Button size="sm" class="travel-button-primary">Save</Button>
+                                    <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
                                     <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
                                 </div>
                             </form>
@@ -631,7 +631,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             </div>
                             <Input class="travel-touch" v-model="costForm.currency" maxlength="3" placeholder="USD" />
                             <textarea v-model="costForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
-                            <Button class="travel-button-primary">Add cost</Button>
+                            <Button type="submit" class="travel-button-primary" :disabled="costForm.processing">Add cost</Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -655,7 +655,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 </label>
                                 <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                 <div class="flex gap-2">
-                                    <Button size="sm" class="travel-button-primary">Save</Button>
+                                    <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
                                     <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
                                 </div>
                             </form>
@@ -685,7 +685,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <Input class="travel-touch" v-model="packingForm.quantity" type="number" min="1" />
                             </div>
                             <textarea v-model="packingForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
-                            <Button class="travel-button-primary">Add item</Button>
+                            <Button type="submit" class="travel-button-primary" :disabled="packingForm.processing">Add item</Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -710,7 +710,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 </label>
                                 <textarea v-model="editData.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                 <div class="flex gap-2">
-                                    <Button size="sm" class="travel-button-primary">Save</Button>
+                                    <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
                                     <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
                                 </div>
                             </form>
@@ -743,7 +743,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <option value="high">High</option>
                             </select>
                             <textarea v-model="taskForm.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
-                            <Button class="travel-button-primary">Add task</Button>
+                            <Button type="submit" class="travel-button-primary" :disabled="taskForm.processing">Add task</Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -760,7 +760,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <Input class="travel-touch" v-model="editData.expires_on" type="date" />
                                 <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                 <div class="flex gap-2">
-                                    <Button size="sm" class="travel-button-primary">Save</Button>
+                                    <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
                                     <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
                                 </div>
                             </form>
@@ -786,7 +786,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             <Input class="travel-touch" v-model="documentForm.document_type" placeholder="Type" />
                             <Input class="travel-touch" v-model="documentForm.expires_on" type="date" />
                             <textarea v-model="documentForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
-                            <Button class="travel-button-primary">Add document</Button>
+                            <Button type="submit" class="travel-button-primary" :disabled="documentForm.processing">Add document</Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -847,7 +847,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             </select>
                             <textarea v-model="importForm.raw_text" class="min-h-64 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Paste a confirmation email, booking details, or ICS file contents here." />
                             <InputError :message="importForm.errors.raw_text" />
-                            <Button class="travel-button-primary">Parse for review</Button>
+                            <Button type="submit" class="travel-button-primary" :disabled="importForm.processing">Parse for review</Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -877,7 +877,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     <option value="editor">Editor</option>
                                     <option value="viewer">Viewer</option>
                                 </select>
-                                <Button class="travel-button-primary" :disabled="!trip.can_share">Invite</Button>
+                                <Button type="submit" class="travel-button-primary" :disabled="!trip.can_share || collaboratorForm.processing">Invite</Button>
                             </form>
                         </CardContent>
                     </Card>
@@ -891,7 +891,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     <Input class="travel-touch" v-model="editData.timezone" placeholder="Timezone" />
                                     <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                     <div class="flex gap-2">
-                                        <Button size="sm" class="travel-button-primary">Save</Button>
+                                        <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
                                         <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
                                     </div>
                                 </form>
@@ -918,7 +918,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <Input class="travel-touch" v-model="reminderForm.remind_at" type="datetime-local" />
                                 <Input class="travel-touch" v-model="reminderForm.timezone" placeholder="Timezone" />
                                 <textarea v-model="reminderForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
-                                <Button class="travel-button-primary">Add reminder</Button>
+                                <Button type="submit" class="travel-button-primary" :disabled="reminderForm.processing">Add reminder</Button>
                             </form>
                         </CardContent>
                     </Card>

@@ -147,7 +147,7 @@ const bucketLabel = (bucket: string) => ({
                             </div>
                             <InputError :message="form.errors.starts_on || form.errors.ends_on" />
                             <textarea v-model="form.summary" class="min-h-24 rounded-md border border-input bg-transparent px-3 py-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes, purpose, or must-do ideas" />
-                            <Button class="travel-button-primary w-full" :disabled="form.processing">
+                            <Button type="submit" class="travel-button-primary w-full" :disabled="form.processing">
                                 Create trip
                             </Button>
                         </form>

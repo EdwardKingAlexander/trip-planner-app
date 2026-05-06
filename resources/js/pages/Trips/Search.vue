@@ -40,7 +40,7 @@ const submit = () => {
                 <h1 class="mt-3 text-3xl font-semibold">Find anything in your trips.</h1>
                 <form class="mt-5 flex flex-col gap-3 sm:flex-row" @submit.prevent="submit">
                     <Input v-model="form.q" class="h-11" placeholder="Search trips, confirmations, documents, tasks..." />
-                    <Button class="bg-[#1b6b6f] hover:bg-[#155356]">Search</Button>
+                    <Button type="submit" class="bg-[#1b6b6f] hover:bg-[#155356]">Search</Button>
                 </form>
             </header>
 

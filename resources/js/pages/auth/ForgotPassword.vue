@@ -48,6 +48,7 @@ defineProps<{
 
             <div class="my-6 flex items-center justify-start">
                 <Button
+                    type="submit"
                     class="w-full"
                     :disabled="processing"
                     data-test="email-password-reset-link-button"

@@ -104,6 +104,63 @@ test('editors can add reservations with local date time details', function () {
         ->and($reservation->flightSegments)->toHaveCount(1);
 });
 
+test('trip owners can add itinerary reservations packing items and tasks', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::create([
+        'user_id' => $owner->id,
+        'name' => 'Seattle Weekend',
+        'destination' => 'Seattle, Washington',
+        'starts_on' => '2026-11-06',
+        'ends_on' => '2026-11-08',
+        'status' => 'planned',
+    ]);
+    $trip->syncDays();
+
+    $this->actingAs($owner)->post(route('trips.itinerary-items.store', $trip), [
+        'trip_day_id' => $trip->days()->first()->id,
+        'type' => 'activity',
+        'title' => 'Pike Place Market',
+        'location_name' => 'Downtown Seattle',
+        'starts_at' => '2026-11-06T10:00',
+        'ends_at' => '2026-11-06T12:00',
+        'timezone' => 'America/Los_Angeles',
+        'status' => 'planned',
+    ])->assertRedirect();
+
+    $this->actingAs($owner)->post(route('trips.reservations.store', $trip), [
+        'type' => 'lodging',
+        'title' => 'Waterfront hotel',
+        'provider_name' => 'Harbor House',
+        'booking_reference' => 'SEA123',
+        'status' => 'confirmed',
+        'starts_at' => '2026-11-06T15:00',
+        'starts_timezone' => 'America/Los_Angeles',
+        'ends_at' => '2026-11-08T11:00',
+        'ends_timezone' => 'America/Los_Angeles',
+        'property_name' => 'Harbor House',
+        'room_type' => 'King',
+    ])->assertRedirect();
+
+    $this->actingAs($owner)->post(route('trips.packing-items.store', $trip), [
+        'traveler_name' => 'Shared',
+        'category' => 'weather',
+        'label' => 'Rain jacket',
+        'quantity' => 2,
+    ])->assertRedirect();
+
+    $this->actingAs($owner)->post(route('trips.tasks.store', $trip), [
+        'title' => 'Download boarding passes',
+        'description' => 'Save offline copies before leaving.',
+        'due_at' => '2026-11-05T18:00',
+        'priority' => 'high',
+    ])->assertRedirect();
+
+    expect($trip->itineraryItems()->where('title', 'Pike Place Market')->exists())->toBeTrue()
+        ->and($trip->reservations()->where('title', 'Waterfront hotel')->exists())->toBeTrue()
+        ->and($trip->packingItems()->where('label', 'Rain jacket')->exists())->toBeTrue()
+        ->and($trip->tasks()->where('title', 'Download boarding passes')->exists())->toBeTrue();
+});
+
 test('editors can update itinerary reservations budget and planning notes', function () {
     $owner = User::factory()->create();
     $editor = User::factory()->create();

@@ -59,7 +59,7 @@ const submit = () => {
                 <textarea id="packing_templates" v-model="form.packing_templates_text" class="min-h-36 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="One packing item per line" />
             </div>
 
-            <Button class="bg-[#1b6b6f] hover:bg-[#155356]" :disabled="form.processing">
+            <Button type="submit" class="bg-[#1b6b6f] hover:bg-[#155356]" :disabled="form.processing">
                 Save travel preferences
             </Button>
         </form>
