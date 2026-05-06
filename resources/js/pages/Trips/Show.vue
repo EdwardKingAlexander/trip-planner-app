@@ -21,6 +21,13 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { store as storeCost, update as updateCost } from '@/routes/trips/costs';
+import { store as storeDocument, update as updateDocument } from '@/routes/trips/documents';
+import { store as storeItineraryItem, update as updateItineraryItem } from '@/routes/trips/itinerary-items';
+import { store as storePackingItem, update as updatePackingItem } from '@/routes/trips/packing-items';
+import { store as storeReminder, update as updateReminder } from '@/routes/trips/reminders';
+import { store as storeReservation, update as updateReservation } from '@/routes/trips/reservations';
+import { store as storeTask, update as updateTask } from '@/routes/trips/tasks';
 
 type Trip = {
     id: number;
@@ -41,10 +48,13 @@ type Trip = {
             id: number;
             type: string;
             title: string;
+            description: string | null;
             location_name: string | null;
             starts_at: string | null;
+            ends_at: string | null;
             timezone: string;
             status: string;
+            is_all_day: boolean;
         }>;
     }>;
     reservations: Array<Record<string, any>>;
@@ -71,6 +81,9 @@ defineOptions({
 
 const activePanel = ref('itinerary');
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+type EditKind = 'itinerary' | 'reservation' | 'cost' | 'packing' | 'task' | 'document' | 'reminder';
+const editing = ref<{ type: EditKind; id: number } | null>(null);
+const editData = ref<Record<string, any>>({});
 
 const itineraryForm = useForm({
     trip_day_id: props.trip.days[0]?.id ?? null,
@@ -143,6 +156,7 @@ const reminderForm = useForm({
     label: '',
     remind_at: '',
     timezone,
+    notes: '',
 });
 
 const collaboratorForm = useForm({
@@ -175,6 +189,39 @@ const post = (form: ReturnType<typeof useForm>, url: string, resetFields?: strin
         preserveScroll: true,
         onSuccess: () => resetFields ? form.reset(...resetFields) : form.reset(),
     });
+};
+
+const isEditing = (type: EditKind, id: number) => editing.value?.type === type && editing.value.id === id;
+
+const toDateTimeLocal = (value: string | null) => value ? new Date(value).toISOString().slice(0, 16) : '';
+
+const startEdit = (type: EditKind, entry: Record<string, any>) => {
+    const normalized = { ...entry };
+
+    ['starts_at', 'ends_at', 'due_at', 'remind_at', 'completed_at'].forEach((key) => {
+        if (key in normalized) {
+            normalized[key] = toDateTimeLocal(normalized[key]);
+        }
+    });
+
+    editing.value = { type, id: entry.id };
+    editData.value = normalized;
+};
+
+const cancelEdit = () => {
+    editing.value = null;
+    editData.value = {};
+};
+
+const patchEdit = (url: string) => {
+    router.patch(url, editData.value, {
+        preserveScroll: true,
+        onSuccess: cancelEdit,
+    });
+};
+
+const setTaskCompletion = (event: Event) => {
+    editData.value.completed_at = (event.target as HTMLInputElement).checked ? new Date().toISOString().slice(0, 16) : null;
 };
 
 const destroyCollaborator = (id: number) => {
@@ -269,14 +316,56 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                         <CardContent class="space-y-3">
                             <div v-if="day.items.length" class="space-y-2">
                                 <div v-for="item in day.items" :key="item.id" class="rounded-md border border-[#d8eaec] p-3 dark:border-[#25414a]">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <div class="text-sm font-semibold">{{ item.title }}</div>
-                                            <div class="text-xs text-[#52666b] dark:text-[#b8d5d2]">{{ item.type }} · {{ formatDateTime(item.starts_at, item.timezone) }}</div>
+                                    <template v-if="isEditing('itinerary', item.id)">
+                                        <form class="grid gap-3" @submit.prevent="patchEdit(updateItineraryItem.url({ trip: trip.id, itineraryItem: item.id }))">
+                                            <select v-model="editData.trip_day_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                                <option :value="null">Unscheduled idea</option>
+                                                <option v-for="optionDay in trip.days" :key="optionDay.id" :value="optionDay.id">{{ optionDay.title }} · {{ optionDay.date }}</option>
+                                            </select>
+                                            <Input class="travel-touch" v-model="editData.title" placeholder="Title" />
+                                            <Input class="travel-touch" v-model="editData.location_name" placeholder="Location" />
+                                            <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                                <Input class="travel-touch" v-model="editData.starts_at" type="datetime-local" />
+                                                <Input class="travel-touch" v-model="editData.ends_at" type="datetime-local" />
+                                            </div>
+                                            <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                                <Input class="travel-touch" v-model="editData.timezone" placeholder="Timezone" />
+                                                <select v-model="editData.status" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                                    <option value="idea">Idea</option>
+                                                    <option value="planned">Planned</option>
+                                                    <option value="booked">Booked</option>
+                                                    <option value="cancelled">Cancelled</option>
+                                                    <option value="completed">Completed</option>
+                                                </select>
+                                            </div>
+                                            <select v-model="editData.type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                                <option value="activity">Activity</option>
+                                                <option value="dining">Dining</option>
+                                                <option value="transport">Transport</option>
+                                                <option value="note">Note</option>
+                                                <option value="custom">Custom</option>
+                                            </select>
+                                            <textarea v-model="editData.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                            <div class="flex gap-2">
+                                                <Button size="sm" class="travel-button-primary">Save</Button>
+                                                <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
+                                            </div>
+                                        </form>
+                                    </template>
+                                    <template v-else>
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div class="text-sm font-semibold">{{ item.title }}</div>
+                                                <div class="text-xs text-[#52666b] dark:text-[#b8d5d2]">{{ item.type }} · {{ formatDateTime(item.starts_at, item.timezone) }}</div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">{{ item.status }}</span>
+                                                <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('itinerary', { ...item, trip_day_id: day.id })">Edit</Button>
+                                            </div>
                                         </div>
-                                        <span class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">{{ item.status }}</span>
-                                    </div>
-                                    <p v-if="item.location_name" class="mt-2 text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ item.location_name }}</p>
+                                        <p v-if="item.location_name" class="mt-2 text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ item.location_name }}</p>
+                                        <p v-if="item.description" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-sm text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ item.description }}</p>
+                                    </template>
                                 </div>
                             </div>
                             <p v-else class="text-sm text-[#52666b] dark:text-[#b8d5d2]">No items planned for this day yet.</p>
@@ -286,7 +375,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Add Itinerary Item</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(itineraryForm, `/trips/${trip.id}/itinerary-items`, ['title', 'description', 'location_name', 'starts_at', 'ends_at'])">
+                        <form class="grid gap-3" @submit.prevent="post(itineraryForm, storeItineraryItem.url(trip.id), ['title', 'description', 'location_name', 'starts_at', 'ends_at'])">
                             <select v-model="itineraryForm.trip_day_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
                                 <option :value="null">Unscheduled idea</option>
                                 <option v-for="day in trip.days" :key="day.id" :value="day.id">{{ day.title }} · {{ day.date }}</option>
@@ -306,6 +395,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <option value="note">Note</option>
                                 <option value="custom">Custom</option>
                             </select>
+                            <textarea v-model="itineraryForm.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                             <Button class="travel-button-primary">Add item</Button>
                         </form>
                     </CardContent>
@@ -316,24 +406,103 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <div class="grid gap-3">
                     <Card v-for="reservation in trip.reservations" :key="reservation.id" class="travel-panel">
                         <CardContent class="pt-6">
-                            <div class="flex items-start gap-3">
-                                <Plane v-if="reservation.type === 'flight'" class="mt-1 h-5 w-5 text-[#0f777f]" />
-                                <Hotel v-else class="mt-1 h-5 w-5 text-[#8a5b26]" />
-                                <div class="min-w-0 flex-1">
-                                    <div class="font-semibold">{{ reservation.title }}</div>
-                                    <div class="text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ reservation.provider_name || reservation.type }} · {{ reservation.booking_reference || 'No confirmation yet' }}</div>
-                                    <div class="mt-2 text-sm">{{ formatDateTime(reservation.starts_at, reservation.starts_timezone) }} - {{ formatDateTime(reservation.ends_at, reservation.ends_timezone) }}</div>
-                                    <p v-if="reservation.address" class="mt-2 text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ reservation.address }}</p>
+                            <template v-if="isEditing('reservation', reservation.id)">
+                                <form class="grid gap-3" @submit.prevent="patchEdit(updateReservation.url({ trip: trip.id, reservation: reservation.id }))">
+                                    <select v-model="editData.type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                        <option value="flight">Flight</option>
+                                        <option value="lodging">Hotel / lodging</option>
+                                        <option value="transport">Ground transport</option>
+                                        <option value="activity">Activity</option>
+                                        <option value="dining">Dining</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                    <Input class="travel-touch" v-model="editData.title" placeholder="Reservation title" />
+                                    <Input class="travel-touch" v-model="editData.provider_name" placeholder="Provider" />
+                                    <Input class="travel-touch" v-model="editData.booking_reference" placeholder="Confirmation number" />
+                                    <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                        <Input class="travel-touch" v-model="editData.starts_at" type="datetime-local" />
+                                        <Input class="travel-touch" v-model="editData.ends_at" type="datetime-local" />
+                                    </div>
+                                    <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                        <Input class="travel-touch" v-model="editData.starts_timezone" placeholder="Start timezone" />
+                                        <Input class="travel-touch" v-model="editData.ends_timezone" placeholder="End timezone" />
+                                    </div>
+                                    <select v-model="editData.status" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                        <option value="researching">Researching</option>
+                                        <option value="reserved">Reserved</option>
+                                        <option value="confirmed">Confirmed</option>
+                                        <option value="checked_in">Checked in</option>
+                                        <option value="cancelled">Cancelled</option>
+                                        <option value="completed">Completed</option>
+                                    </select>
+                                    <template v-if="editData.type === 'flight'">
+                                        <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                            <Input class="travel-touch" v-model="editData.airline" placeholder="Airline" />
+                                            <Input class="travel-touch" v-model="editData.flight_number" placeholder="Flight #" />
+                                        </div>
+                                        <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                            <Input class="travel-touch" v-model="editData.departure_airport" placeholder="From airport" />
+                                            <Input class="travel-touch" v-model="editData.arrival_airport" placeholder="To airport" />
+                                        </div>
+                                    </template>
+                                    <template v-if="editData.type === 'lodging'">
+                                        <Input class="travel-touch" v-model="editData.property_name" placeholder="Property name" />
+                                        <Input class="travel-touch" v-model="editData.room_type" placeholder="Room type" />
+                                    </template>
+                                    <Input class="travel-touch" v-model="editData.location_name" placeholder="Location" />
+                                    <Input class="travel-touch" v-model="editData.address" placeholder="Address" />
+                                    <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                        <Input class="travel-touch" v-model="editData.contact_phone" placeholder="Phone" />
+                                        <Input class="travel-touch" v-model="editData.contact_email" placeholder="Email" />
+                                    </div>
+                                    <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                    <div class="flex gap-2">
+                                        <Button size="sm" class="travel-button-primary">Save</Button>
+                                        <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
+                                    </div>
+                                </form>
+                            </template>
+                            <template v-else>
+                                <div class="flex items-start gap-3">
+                                    <Plane v-if="reservation.type === 'flight'" class="mt-1 h-5 w-5 text-[#0f777f]" />
+                                    <Hotel v-else class="mt-1 h-5 w-5 text-[#8a5b26]" />
+                                    <div class="min-w-0 flex-1">
+                                        <div class="font-semibold">{{ reservation.title }}</div>
+                                        <div class="text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ reservation.provider_name || reservation.type }} · {{ reservation.booking_reference || 'No confirmation yet' }}</div>
+                                        <div class="mt-2 text-sm">{{ formatDateTime(reservation.starts_at, reservation.starts_timezone) }} - {{ formatDateTime(reservation.ends_at, reservation.ends_timezone) }}</div>
+                                        <p v-if="reservation.address" class="mt-2 text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ reservation.address }}</p>
+                                        <p v-if="reservation.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-sm text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ reservation.notes }}</p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">{{ reservation.status }}</span>
+                                        <Button
+                                            v-if="trip.can_edit"
+                                            size="sm"
+                                            type="button"
+                                            variant="outline"
+                                            class="travel-touch"
+                                            @click="startEdit('reservation', {
+                                                ...reservation,
+                                                airline: reservation.flight_segments?.[0]?.airline ?? reservation.provider_name ?? '',
+                                                flight_number: reservation.flight_segments?.[0]?.flight_number ?? '',
+                                                departure_airport: reservation.flight_segments?.[0]?.departure_airport ?? '',
+                                                arrival_airport: reservation.flight_segments?.[0]?.arrival_airport ?? '',
+                                                property_name: reservation.lodging_stay?.property_name ?? reservation.title,
+                                                room_type: reservation.lodging_stay?.room_type ?? '',
+                                            })"
+                                        >
+                                            Edit
+                                        </Button>
+                                    </div>
                                 </div>
-                                <span class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">{{ reservation.status }}</span>
-                            </div>
+                            </template>
                         </CardContent>
                     </Card>
                 </div>
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Add Reservation</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(reservationForm, `/trips/${trip.id}/reservations`, ['title', 'provider_name', 'booking_reference', 'starts_at', 'ends_at', 'location_name', 'address', 'notes', 'airline', 'flight_number', 'departure_airport', 'arrival_airport', 'property_name', 'room_type'])">
+                        <form class="grid gap-3" @submit.prevent="post(reservationForm, storeReservation.url(trip.id), ['title', 'provider_name', 'booking_reference', 'starts_at', 'ends_at', 'location_name', 'address', 'notes', 'airline', 'flight_number', 'departure_airport', 'arrival_airport', 'property_name', 'room_type'])">
                             <select v-model="reservationForm.type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
                                 <option value="flight">Flight</option>
                                 <option value="lodging">Hotel / lodging</option>
@@ -369,6 +538,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <Input class="travel-touch" v-model="reservationForm.room_type" placeholder="Room type" />
                             </template>
                             <Input class="travel-touch" v-model="reservationForm.address" placeholder="Address" />
+                            <textarea v-model="reservationForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                             <Button class="travel-button-primary">Add reservation</Button>
                         </form>
                     </CardContent>
@@ -389,16 +559,45 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <div class="text-2xl font-semibold">${{ actualTotal.toFixed(2) }}</div>
                             </div>
                         </div>
-                        <div v-for="cost in trip.costs" :key="cost.id" class="flex justify-between rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
-                            <span>{{ cost.label }} · {{ cost.category }}</span>
-                            <span>{{ cost.currency }} {{ cost.actual_amount || cost.planned_amount || '0.00' }}</span>
+                        <div v-for="cost in trip.costs" :key="cost.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                            <form v-if="isEditing('cost', cost.id)" class="grid gap-3" @submit.prevent="patchEdit(updateCost.url({ trip: trip.id, cost: cost.id }))">
+                                <Input class="travel-touch" v-model="editData.label" placeholder="Label" />
+                                <select v-model="editData.category" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                    <option value="flight">Flight</option>
+                                    <option value="lodging">Lodging</option>
+                                    <option value="food">Food</option>
+                                    <option value="activity">Activity</option>
+                                    <option value="transport">Transport</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                                <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                    <Input class="travel-touch" v-model="editData.planned_amount" type="number" min="0" step="0.01" placeholder="Planned" />
+                                    <Input class="travel-touch" v-model="editData.actual_amount" type="number" min="0" step="0.01" placeholder="Actual" />
+                                </div>
+                                <Input class="travel-touch" v-model="editData.currency" maxlength="3" placeholder="USD" />
+                                <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                <div class="flex gap-2">
+                                    <Button size="sm" class="travel-button-primary">Save</Button>
+                                    <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
+                                </div>
+                            </form>
+                            <template v-else>
+                                <div class="flex justify-between gap-3">
+                                    <span>{{ cost.label }} · {{ cost.category }}</span>
+                                    <div class="flex items-center gap-2">
+                                        <span>{{ cost.currency }} {{ cost.actual_amount || cost.planned_amount || '0.00' }}</span>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('cost', cost)">Edit</Button>
+                                    </div>
+                                </div>
+                                <p v-if="cost.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ cost.notes }}</p>
+                            </template>
                         </div>
                     </CardContent>
                 </Card>
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Add Cost</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(costForm, `/trips/${trip.id}/costs`, ['label', 'planned_amount', 'actual_amount', 'notes'])">
+                        <form class="grid gap-3" @submit.prevent="post(costForm, storeCost.url(trip.id), ['label', 'planned_amount', 'actual_amount', 'notes'])">
                             <Input class="travel-touch" v-model="costForm.label" placeholder="Label" />
                             <select v-model="costForm.category" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
                                 <option value="flight">Flight</option>
@@ -413,6 +612,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <Input class="travel-touch" v-model="costForm.actual_amount" type="number" min="0" step="0.01" placeholder="Actual" />
                             </div>
                             <Input class="travel-touch" v-model="costForm.currency" maxlength="3" placeholder="USD" />
+                            <textarea v-model="costForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                             <Button class="travel-button-primary">Add cost</Button>
                         </form>
                     </CardContent>
@@ -423,22 +623,49 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Packing List</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="item in trip.packing_items" :key="item.id" class="flex items-center justify-between rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
-                            <span>{{ item.quantity }}x {{ item.label }} <span class="text-[#52666b] dark:text-[#b8d5d2]">· {{ item.category }}</span></span>
-                            <span>{{ item.traveler_name || 'Shared' }}</span>
+                        <div v-for="item in trip.packing_items" :key="item.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                            <form v-if="isEditing('packing', item.id)" class="grid gap-3" @submit.prevent="patchEdit(updatePackingItem.url({ trip: trip.id, packingItem: item.id }))">
+                                <Input class="travel-touch" v-model="editData.label" placeholder="Item" />
+                                <Input class="travel-touch" v-model="editData.traveler_name" placeholder="Traveler name" />
+                                <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                    <Input class="travel-touch" v-model="editData.category" placeholder="Category" />
+                                    <Input class="travel-touch" v-model="editData.quantity" type="number" min="1" />
+                                </div>
+                                <label class="inline-flex items-center gap-2 text-sm">
+                                    <input v-model="editData.is_packed" type="checkbox" class="rounded border-input" />
+                                    Packed
+                                </label>
+                                <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                <div class="flex gap-2">
+                                    <Button size="sm" class="travel-button-primary">Save</Button>
+                                    <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
+                                </div>
+                            </form>
+                            <template v-else>
+                                <div class="flex items-center justify-between gap-3">
+                                    <span>{{ item.quantity }}x {{ item.label }} <span class="text-[#52666b] dark:text-[#b8d5d2]">· {{ item.category }}</span></span>
+                                    <div class="flex items-center gap-2">
+                                        <span>{{ item.traveler_name || 'Shared' }}</span>
+                                        <span v-if="item.is_packed" class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">Packed</span>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('packing', item)">Edit</Button>
+                                    </div>
+                                </div>
+                                <p v-if="item.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ item.notes }}</p>
+                            </template>
                         </div>
                     </CardContent>
                 </Card>
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Add Packing Item</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(packingForm, `/trips/${trip.id}/packing-items`, ['traveler_name', 'label', 'notes'])">
+                        <form class="grid gap-3" @submit.prevent="post(packingForm, storePackingItem.url(trip.id), ['traveler_name', 'label', 'notes'])">
                             <Input class="travel-touch" v-model="packingForm.label" placeholder="Item" />
                             <Input class="travel-touch" v-model="packingForm.traveler_name" placeholder="Traveler name" />
                             <div class="grid gap-3 min-[460px]:grid-cols-2">
                                 <Input class="travel-touch" v-model="packingForm.category" placeholder="Category" />
                                 <Input class="travel-touch" v-model="packingForm.quantity" type="number" min="1" />
                             </div>
+                            <textarea v-model="packingForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                             <Button class="travel-button-primary">Add item</Button>
                         </form>
                     </CardContent>
@@ -450,15 +677,44 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     <CardHeader><CardTitle class="text-base">Tasks · {{ completedTasks }}/{{ trip.tasks.length }} done</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
                         <div v-for="task in trip.tasks" :key="task.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
-                            <div class="font-medium">{{ task.title }}</div>
-                            <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
+                            <form v-if="isEditing('task', task.id)" class="grid gap-3" @submit.prevent="patchEdit(updateTask.url({ trip: trip.id, task: task.id }))">
+                                <Input class="travel-touch" v-model="editData.title" placeholder="Task" />
+                                <Input class="travel-touch" v-model="editData.due_at" type="datetime-local" />
+                                <select v-model="editData.priority" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                    <option value="low">Low</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="high">High</option>
+                                </select>
+                                <label class="inline-flex items-center gap-2 text-sm">
+                                    <input :checked="Boolean(editData.completed_at)" type="checkbox" class="rounded border-input" @change="setTaskCompletion" />
+                                    Complete
+                                </label>
+                                <textarea v-model="editData.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                <div class="flex gap-2">
+                                    <Button size="sm" class="travel-button-primary">Save</Button>
+                                    <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
+                                </div>
+                            </form>
+                            <template v-else>
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="font-medium">{{ task.title }}</div>
+                                        <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span v-if="task.completed_at" class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">Done</span>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('task', task)">Edit</Button>
+                                    </div>
+                                </div>
+                                <p v-if="task.description" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ task.description }}</p>
+                            </template>
                         </div>
                     </CardContent>
                 </Card>
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Add Task</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(taskForm, `/trips/${trip.id}/tasks`, ['title', 'description', 'due_at'])">
+                        <form class="grid gap-3" @submit.prevent="post(taskForm, storeTask.url(trip.id), ['title', 'description', 'due_at'])">
                             <Input class="travel-touch" v-model="taskForm.title" placeholder="Task" />
                             <Input class="travel-touch" v-model="taskForm.due_at" type="datetime-local" />
                             <select v-model="taskForm.priority" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
@@ -466,6 +722,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <option value="normal">Normal</option>
                                 <option value="high">High</option>
                             </select>
+                            <textarea v-model="taskForm.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                             <Button class="travel-button-primary">Add task</Button>
                         </form>
                     </CardContent>
@@ -477,18 +734,37 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     <CardHeader><CardTitle class="text-base">Documents</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
                         <div v-for="document in trip.documents" :key="document.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
-                            <div class="font-medium">{{ document.title }}</div>
-                            <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ document.document_type }} · expires {{ formatDate(document.expires_on) }}</div>
+                            <form v-if="isEditing('document', document.id)" class="grid gap-3" @submit.prevent="patchEdit(updateDocument.url({ trip: trip.id, document: document.id }))">
+                                <Input class="travel-touch" v-model="editData.title" placeholder="Document title" />
+                                <Input class="travel-touch" v-model="editData.document_type" placeholder="Type" />
+                                <Input class="travel-touch" v-model="editData.expires_on" type="date" />
+                                <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                <div class="flex gap-2">
+                                    <Button size="sm" class="travel-button-primary">Save</Button>
+                                    <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
+                                </div>
+                            </form>
+                            <template v-else>
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="font-medium">{{ document.title }}</div>
+                                        <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ document.document_type }} · expires {{ formatDate(document.expires_on) }}</div>
+                                    </div>
+                                    <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('document', document)">Edit</Button>
+                                </div>
+                                <p v-if="document.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ document.notes }}</p>
+                            </template>
                         </div>
                     </CardContent>
                 </Card>
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Add Document Note</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(documentForm, `/trips/${trip.id}/documents`, ['title', 'expires_on', 'notes'])">
+                        <form class="grid gap-3" @submit.prevent="post(documentForm, storeDocument.url(trip.id), ['title', 'expires_on', 'notes'])">
                             <Input class="travel-touch" v-model="documentForm.title" placeholder="Document title" />
                             <Input class="travel-touch" v-model="documentForm.document_type" placeholder="Type" />
                             <Input class="travel-touch" v-model="documentForm.expires_on" type="date" />
+                            <textarea v-model="documentForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                             <Button class="travel-button-primary">Add document</Button>
                         </form>
                     </CardContent>
@@ -585,12 +861,41 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                         </CardContent>
                     </Card>
                     <Card class="travel-panel">
-                        <CardHeader><CardTitle class="flex items-center gap-2 text-base"><Bell class="h-5 w-5" /> Reminder</CardTitle></CardHeader>
+                        <CardHeader><CardTitle class="flex items-center gap-2 text-base"><Bell class="h-5 w-5" /> Reminders</CardTitle></CardHeader>
+                        <CardContent class="space-y-2">
+                            <div v-for="reminder in trip.reminders" :key="reminder.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                                <form v-if="isEditing('reminder', reminder.id)" class="grid gap-3" @submit.prevent="patchEdit(updateReminder.url({ trip: trip.id, reminder: reminder.id }))">
+                                    <Input class="travel-touch" v-model="editData.label" placeholder="Reminder label" />
+                                    <Input class="travel-touch" v-model="editData.remind_at" type="datetime-local" />
+                                    <Input class="travel-touch" v-model="editData.timezone" placeholder="Timezone" />
+                                    <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                    <div class="flex gap-2">
+                                        <Button size="sm" class="travel-button-primary">Save</Button>
+                                        <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
+                                    </div>
+                                </form>
+                                <template v-else>
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div class="font-medium">{{ reminder.label }}</div>
+                                            <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ formatDateTime(reminder.remind_at, reminder.timezone) }}</div>
+                                        </div>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('reminder', reminder)">Edit</Button>
+                                    </div>
+                                    <p v-if="reminder.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ reminder.notes }}</p>
+                                </template>
+                            </div>
+                            <p v-if="!trip.reminders.length" class="text-sm text-[#52666b] dark:text-[#b8d5d2]">No reminders yet.</p>
+                        </CardContent>
+                    </Card>
+                    <Card class="travel-panel">
+                        <CardHeader><CardTitle class="flex items-center gap-2 text-base"><Bell class="h-5 w-5" /> Add Reminder</CardTitle></CardHeader>
                         <CardContent>
-                            <form class="grid gap-3" @submit.prevent="post(reminderForm, `/trips/${trip.id}/reminders`, ['label', 'remind_at'])">
+                            <form class="grid gap-3" @submit.prevent="post(reminderForm, storeReminder.url(trip.id), ['label', 'remind_at', 'notes'])">
                                 <Input class="travel-touch" v-model="reminderForm.label" placeholder="Reminder label" />
                                 <Input class="travel-touch" v-model="reminderForm.remind_at" type="datetime-local" />
                                 <Input class="travel-touch" v-model="reminderForm.timezone" placeholder="Timezone" />
+                                <textarea v-model="reminderForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                 <Button class="travel-button-primary">Add reminder</Button>
                             </form>
                         </CardContent>

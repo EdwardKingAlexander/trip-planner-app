@@ -12,7 +12,14 @@ const props = defineProps<{
 
 const { isMobile, state, toggleSidebar } = useSidebar()
 const isHydrated = ref(false)
-const showOpenIcon = computed(() => (isHydrated.value && isMobile.value) || state.value === 'collapsed')
+// Stay stable until mounted: `isMobile`/`state` can diverge between SSR and the client and trigger hydration mismatches.
+const showOpenIcon = computed(() => {
+  if (!isHydrated.value) {
+    return false
+  }
+
+  return isMobile.value || state.value === 'collapsed'
+})
 
 onMounted(() => {
   isHydrated.value = true

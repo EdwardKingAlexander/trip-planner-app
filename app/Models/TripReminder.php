@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TripReminder extends Model
 {
-    protected $fillable = ['trip_id', 'remindable_type', 'remindable_id', 'label', 'remind_at', 'timezone', 'delivery_channels', 'sent_at'];
+    protected $fillable = ['trip_id', 'remindable_type', 'remindable_id', 'label', 'remind_at', 'timezone', 'notes', 'delivery_channels', 'sent_at'];
 
     protected function casts(): array
     {

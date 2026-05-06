@@ -103,3 +103,182 @@ test('editors can add reservations with local date time details', function () {
         ->and($reservation->ends_timezone)->toBe('Asia/Tokyo')
         ->and($reservation->flightSegments)->toHaveCount(1);
 });
+
+test('editors can update itinerary reservations budget and planning notes', function () {
+    $owner = User::factory()->create();
+    $editor = User::factory()->create();
+    $trip = Trip::create([
+        'user_id' => $owner->id,
+        'name' => 'Tokyo',
+        'destination' => 'Tokyo, Japan',
+        'starts_on' => '2026-10-03',
+        'ends_on' => '2026-10-12',
+        'status' => 'planned',
+    ]);
+    $trip->syncDays();
+    $trip->collaborators()->create([
+        'user_id' => $editor->id,
+        'email' => $editor->email,
+        'role' => 'editor',
+        'accepted_at' => now(),
+    ]);
+
+    $itineraryItem = $trip->itineraryItems()->create([
+        'trip_day_id' => $trip->days()->first()->id,
+        'type' => 'activity',
+        'title' => 'Museum',
+        'timezone' => 'Asia/Tokyo',
+        'status' => 'planned',
+        'sort_order' => 0,
+    ]);
+    $reservation = $trip->reservations()->create([
+        'type' => 'flight',
+        'title' => 'Outbound',
+        'status' => 'reserved',
+        'starts_timezone' => 'America/Denver',
+        'ends_timezone' => 'Asia/Tokyo',
+    ]);
+    $cost = $trip->costs()->create([
+        'category' => 'lodging',
+        'label' => 'Hotel',
+        'currency' => 'USD',
+    ]);
+    $packingItem = $trip->packingItems()->create([
+        'category' => 'clothes',
+        'label' => 'Jacket',
+        'quantity' => 1,
+        'sort_order' => 0,
+    ]);
+    $task = $trip->tasks()->create([
+        'title' => 'Check passports',
+        'priority' => 'normal',
+    ]);
+    $document = $trip->documents()->create([
+        'title' => 'Passport scan',
+        'document_type' => 'id',
+    ]);
+    $reminder = $trip->reminders()->create([
+        'label' => 'Check in',
+        'remind_at' => '2026-10-02 08:00:00',
+        'timezone' => 'America/Denver',
+        'delivery_channels' => ['in_app'],
+    ]);
+
+    $this->actingAs($editor)->patch(route('trips.itinerary-items.update', [$trip, $itineraryItem]), [
+        'trip_day_id' => $trip->days()->first()->id,
+        'type' => 'dining',
+        'title' => 'Sushi dinner',
+        'description' => 'Ask for the counter seats.',
+        'location_name' => 'Ginza',
+        'starts_at' => '2026-10-05T19:00',
+        'ends_at' => '2026-10-05T21:00',
+        'timezone' => 'Asia/Tokyo',
+        'is_all_day' => false,
+        'status' => 'booked',
+    ])->assertRedirect();
+
+    $this->actingAs($editor)->patch(route('trips.reservations.update', [$trip, $reservation]), [
+        'type' => 'lodging',
+        'title' => 'Shinjuku hotel',
+        'provider_name' => 'Hotel Century',
+        'booking_reference' => 'HOTEL123',
+        'status' => 'confirmed',
+        'starts_at' => '2026-10-04T15:00',
+        'starts_timezone' => 'Asia/Tokyo',
+        'ends_at' => '2026-10-12T11:00',
+        'ends_timezone' => 'Asia/Tokyo',
+        'location_name' => 'Shinjuku',
+        'address' => '1-1 Shinjuku',
+        'contact_phone' => '555-0101',
+        'contact_email' => 'frontdesk@example.com',
+        'notes' => 'Request a high floor.',
+        'property_name' => 'Hotel Century',
+        'room_type' => 'King',
+    ])->assertRedirect();
+
+    $this->actingAs($editor)->patch(route('trips.costs.update', [$trip, $cost]), [
+        'category' => 'lodging',
+        'label' => 'Hotel deposit',
+        'planned_amount' => '400.00',
+        'actual_amount' => '425.50',
+        'currency' => 'USD',
+        'notes' => 'Includes breakfast.',
+    ])->assertRedirect();
+
+    $this->actingAs($editor)->patch(route('trips.packing-items.update', [$trip, $packingItem]), [
+        'traveler_name' => 'Taylor',
+        'category' => 'weather',
+        'label' => 'Rain jacket',
+        'quantity' => 2,
+        'is_packed' => true,
+        'notes' => 'Pack in carry-on.',
+    ])->assertRedirect();
+
+    $this->actingAs($editor)->patch(route('trips.tasks.update', [$trip, $task]), [
+        'title' => 'Check passport expiration',
+        'description' => 'Confirm both passports are valid for six months.',
+        'due_at' => '2026-09-15T09:00',
+        'completed_at' => '2026-09-14T12:00',
+        'priority' => 'high',
+    ])->assertRedirect();
+
+    $this->actingAs($editor)->patch(route('trips.documents.update', [$trip, $document]), [
+        'title' => 'Passport scan backup',
+        'document_type' => 'identity',
+        'expires_on' => '2030-01-01',
+        'notes' => 'Keep offline copy too.',
+    ])->assertRedirect();
+
+    $this->actingAs($editor)->patch(route('trips.reminders.update', [$trip, $reminder]), [
+        'label' => 'Online check in',
+        'remind_at' => '2026-10-02T09:00',
+        'timezone' => 'America/Denver',
+        'notes' => 'Use airline app.',
+    ])->assertRedirect();
+
+    expect($itineraryItem->fresh()->description)->toBe('Ask for the counter seats.')
+        ->and($reservation->fresh()->notes)->toBe('Request a high floor.')
+        ->and($reservation->fresh()->lodgingStay->room_type)->toBe('King')
+        ->and($reservation->fresh()->flightSegments)->toHaveCount(0)
+        ->and($cost->fresh()->notes)->toBe('Includes breakfast.')
+        ->and($packingItem->fresh()->notes)->toBe('Pack in carry-on.')
+        ->and($packingItem->fresh()->is_packed)->toBeTrue()
+        ->and($task->fresh()->description)->toBe('Confirm both passports are valid for six months.')
+        ->and($document->fresh()->notes)->toBe('Keep offline copy too.')
+        ->and($reminder->fresh()->notes)->toBe('Use airline app.');
+});
+
+test('viewers cannot update trip planning entries', function () {
+    $owner = User::factory()->create();
+    $viewer = User::factory()->create();
+    $trip = Trip::create([
+        'user_id' => $owner->id,
+        'name' => 'Lisbon',
+        'destination' => 'Lisbon, Portugal',
+        'starts_on' => '2026-09-10',
+        'ends_on' => '2026-09-12',
+        'status' => 'planned',
+    ]);
+    $cost = $trip->costs()->create([
+        'category' => 'food',
+        'label' => 'Dinner',
+        'currency' => 'USD',
+    ]);
+    $trip->collaborators()->create([
+        'user_id' => $viewer->id,
+        'email' => $viewer->email,
+        'role' => 'viewer',
+        'accepted_at' => now(),
+    ]);
+
+    $this->actingAs($viewer)->patch(route('trips.costs.update', [$trip, $cost]), [
+        'category' => 'food',
+        'label' => 'Dinner updated',
+        'planned_amount' => '80.00',
+        'actual_amount' => null,
+        'currency' => 'USD',
+        'notes' => 'Should not save.',
+    ])->assertForbidden();
+
+    expect($cost->fresh()->label)->toBe('Dinner');
+});

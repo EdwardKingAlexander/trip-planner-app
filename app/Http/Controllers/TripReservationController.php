@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Reservation;
 use App\Models\Trip;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,36 @@ class TripReservationController extends Controller
     {
         $this->authorize('update', $trip);
 
-        $validated = $request->validate([
+        $validated = $this->validatedReservation($request);
+
+        DB::transaction(function () use ($trip, $validated) {
+            $reservation = $trip->reservations()->create($this->reservationAttributes($validated));
+
+            $this->syncReservationDetails($reservation, $validated);
+        });
+
+        return back()->with('success', 'Reservation added.');
+    }
+
+    public function update(Request $request, Trip $trip, Reservation $reservation): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($reservation->trip_id === $trip->id, 404);
+
+        $validated = $this->validatedReservation($request);
+
+        DB::transaction(function () use ($reservation, $validated) {
+            $reservation->update($this->reservationAttributes($validated));
+
+            $this->syncReservationDetails($reservation, $validated);
+        });
+
+        return back()->with('success', 'Reservation updated.');
+    }
+
+    private function validatedReservation(Request $request): array
+    {
+        return $request->validate([
             'type' => ['required', 'string', 'max:40'],
             'title' => ['required', 'string', 'max:160'],
             'provider_name' => ['nullable', 'string', 'max:160'],
@@ -35,19 +65,26 @@ class TripReservationController extends Controller
             'property_name' => ['nullable', 'string', 'max:160'],
             'room_type' => ['nullable', 'string', 'max:120'],
         ]);
+    }
 
-        DB::transaction(function () use ($trip, $validated) {
-            $reservation = $trip->reservations()->create(collect($validated)->except([
-                'airline',
-                'flight_number',
-                'departure_airport',
-                'arrival_airport',
-                'property_name',
-                'room_type',
-            ])->all());
+    private function reservationAttributes(array $validated): array
+    {
+        return collect($validated)->except([
+            'airline',
+            'flight_number',
+            'departure_airport',
+            'arrival_airport',
+            'property_name',
+            'room_type',
+        ])->all();
+    }
 
-            if ($reservation->type === 'flight') {
-                $reservation->flightSegments()->create([
+    private function syncReservationDetails(Reservation $reservation, array $validated): void
+    {
+        if ($reservation->type === 'flight') {
+            $reservation->flightSegments()->updateOrCreate(
+                ['segment_order' => 0],
+                [
                     'airline' => $validated['airline'] ?? $reservation->provider_name,
                     'flight_number' => $validated['flight_number'] ?? null,
                     'confirmation_code' => $reservation->booking_reference,
@@ -57,11 +94,19 @@ class TripReservationController extends Controller
                     'departure_timezone' => $reservation->starts_timezone,
                     'arrives_at' => $reservation->ends_at,
                     'arrival_timezone' => $reservation->ends_timezone,
-                ]);
-            }
+                    'segment_order' => 0,
+                ],
+            );
+        }
 
-            if ($reservation->type === 'lodging') {
-                $reservation->lodgingStay()->create([
+        if ($reservation->type !== 'flight') {
+            $reservation->flightSegments()->delete();
+        }
+
+        if ($reservation->type === 'lodging') {
+            $reservation->lodgingStay()->updateOrCreate(
+                [],
+                [
                     'property_name' => $validated['property_name'] ?? $reservation->title,
                     'room_type' => $validated['room_type'] ?? null,
                     'check_in_at' => $reservation->starts_at,
@@ -70,10 +115,12 @@ class TripReservationController extends Controller
                     'check_out_timezone' => $reservation->ends_timezone,
                     'address' => $reservation->address,
                     'phone' => $reservation->contact_phone,
-                ]);
-            }
-        });
+                ],
+            );
+        }
 
-        return back()->with('success', 'Reservation added.');
+        if ($reservation->type !== 'lodging') {
+            $reservation->lodgingStay()->delete();
+        }
     }
 }

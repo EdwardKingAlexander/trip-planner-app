@@ -20,6 +20,10 @@ Use [production-feedback](production-feedback/00-master-plan.md) for live produc
 
 Use [live-trip-collaboration](live-trip-collaboration/00-master-plan.md) for realtime shared-trip notifications, private broadcast channel planning, and automatic trip screen updates. Its durable state file is `ai/state/live-trip-collaboration.json`.
 
+## Editable Trip Entries
+
+Use [editable-trip-entries](editable-trip-entries/00-master-plan.md) for post-creation editing and visible notes on itinerary, reservations, budget, packing, tasks, documents, and reminders. Its durable state file is `ai/state/editable-trip-entries.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.
