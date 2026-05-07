@@ -36,6 +36,14 @@ Use [themes-plan](themes-plan/00-master-plan.md) for the five premade visual the
 
 Use [navigation-uplift](navigation-uplift/00-master-plan.md) to fix the broken sidebar links (six items currently route to `/trips`), wire Wayfinder-typed routes, add Calendar and Reminders global pages plus a Notifications nav entry, and bring the mobile sheet to parity with the sidebar. Its durable state file is `ai/state/navigation-uplift.json`.
 
+## Notification Deep Links
+
+Use [notification-deep-links](notification-deep-links/00-master-plan.md) to make notifications open the actual changed entity (right tab, scrolled into view, briefly highlighted) instead of dumping the user on the trip overview. Adds a `NotificationDeepLinkResolver`, a `read-and-go` endpoint, and trip-show focus targeting. Its durable state file is `ai/state/notification-deep-links.json`.
+
+## Packing Checkbox
+
+Use [packing-checkbox](packing-checkbox/00-master-plan.md) to add a single-click inline checkbox on packing items (currently users must enter edit mode and submit a form), with optimistic UI, a focused toggle endpoint, a progress header, and a "hide packed" filter. Its durable state file is `ai/state/packing-checkbox.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.

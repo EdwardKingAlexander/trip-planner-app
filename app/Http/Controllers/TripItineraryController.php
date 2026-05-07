@@ -50,6 +50,25 @@ class TripItineraryController extends Controller
         return back()->with('success', 'Itinerary item updated.');
     }
 
+    public function destroy(Trip $trip, ItineraryItem $itineraryItem, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($itineraryItem->trip_id === $trip->id, 404);
+
+        $title = $itineraryItem->title;
+        $events->record(
+            trip: $trip,
+            eventType: 'itinerary.deleted',
+            changedArea: 'itinerary',
+            summary: "deleted itinerary item: {$title}",
+            subject: $itineraryItem,
+        );
+
+        $itineraryItem->delete();
+
+        return back()->with('success', 'Itinerary item deleted.');
+    }
+
     private function validatedItinerary(Request $request, Trip $trip): array
     {
         return $request->validate([

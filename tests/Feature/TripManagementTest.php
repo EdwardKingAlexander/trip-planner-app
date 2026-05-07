@@ -336,6 +336,125 @@ test('editors can update itinerary reservations budget and planning notes', func
         ->and($reminder->fresh()->notes)->toBe('Use airline app.');
 });
 
+test('owners can delete trip planning entries', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::create([
+        'user_id' => $owner->id,
+        'name' => 'Lisbon',
+        'destination' => 'Lisbon, Portugal',
+        'starts_on' => '2026-09-10',
+        'ends_on' => '2026-09-12',
+        'status' => 'planned',
+    ]);
+    $trip->syncDays();
+
+    $itineraryItem = $trip->itineraryItems()->create([
+        'trip_day_id' => $trip->days()->first()->id,
+        'type' => 'activity',
+        'title' => 'Walking tour',
+        'timezone' => 'Europe/Lisbon',
+        'status' => 'planned',
+        'sort_order' => 0,
+    ]);
+    $reservation = $trip->reservations()->create([
+        'type' => 'lodging',
+        'title' => 'Alfama hotel',
+        'status' => 'confirmed',
+        'starts_timezone' => 'Europe/Lisbon',
+        'ends_timezone' => 'Europe/Lisbon',
+    ]);
+    $cost = $trip->costs()->create([
+        'category' => 'lodging',
+        'label' => 'Hotel deposit',
+        'currency' => 'USD',
+    ]);
+    $packingItem = $trip->packingItems()->create([
+        'category' => 'clothes',
+        'label' => 'Light jacket',
+        'quantity' => 1,
+        'sort_order' => 0,
+    ]);
+    $task = $trip->tasks()->create([
+        'title' => 'Check passport',
+        'priority' => 'normal',
+    ]);
+    $document = $trip->documents()->create([
+        'title' => 'Passport copy',
+        'document_type' => 'identity',
+    ]);
+    $reminder = $trip->reminders()->create([
+        'label' => 'Check in',
+        'remind_at' => '2026-09-09 09:00:00',
+        'timezone' => 'America/Denver',
+        'delivery_channels' => ['in_app'],
+    ]);
+
+    $this->actingAs($owner)->delete(route('trips.itinerary-items.destroy', [$trip, $itineraryItem]))->assertRedirect();
+    $this->actingAs($owner)->delete(route('trips.reservations.destroy', [$trip, $reservation]))->assertRedirect();
+    $this->actingAs($owner)->delete(route('trips.costs.destroy', [$trip, $cost]))->assertRedirect();
+    $this->actingAs($owner)->delete(route('trips.packing-items.destroy', [$trip, $packingItem]))->assertRedirect();
+    $this->actingAs($owner)->delete(route('trips.tasks.destroy', [$trip, $task]))->assertRedirect();
+    $this->actingAs($owner)->delete(route('trips.documents.destroy', [$trip, $document]))->assertRedirect();
+    $this->actingAs($owner)->delete(route('trips.reminders.destroy', [$trip, $reminder]))->assertRedirect();
+
+    $this->assertModelMissing($itineraryItem);
+    $this->assertModelMissing($reservation);
+    $this->assertModelMissing($cost);
+    $this->assertModelMissing($packingItem);
+    $this->assertModelMissing($task);
+    $this->assertModelMissing($document);
+    $this->assertModelMissing($reminder);
+
+    expect($trip->activityEvents()->where('event_type', 'itinerary.deleted')->exists())->toBeTrue()
+        ->and($trip->activityEvents()->where('event_type', 'reservation.deleted')->exists())->toBeTrue()
+        ->and($trip->activityEvents()->where('event_type', 'cost.deleted')->exists())->toBeTrue()
+        ->and($trip->activityEvents()->where('event_type', 'packing.deleted')->exists())->toBeTrue()
+        ->and($trip->activityEvents()->where('event_type', 'task.deleted')->exists())->toBeTrue()
+        ->and($trip->activityEvents()->where('event_type', 'document.deleted')->exists())->toBeTrue()
+        ->and($trip->activityEvents()->where('event_type', 'reminder.deleted')->exists())->toBeTrue();
+});
+
+test('editors can delete trip planning entries but viewers cannot', function () {
+    $owner = User::factory()->create();
+    $editor = User::factory()->create();
+    $viewer = User::factory()->create();
+    $trip = Trip::create([
+        'user_id' => $owner->id,
+        'name' => 'Tokyo',
+        'destination' => 'Tokyo, Japan',
+        'starts_on' => '2026-10-03',
+        'ends_on' => '2026-10-12',
+        'status' => 'planned',
+    ]);
+    $trip->collaborators()->create([
+        'user_id' => $editor->id,
+        'email' => $editor->email,
+        'role' => 'editor',
+        'accepted_at' => now(),
+    ]);
+    $trip->collaborators()->create([
+        'user_id' => $viewer->id,
+        'email' => $viewer->email,
+        'role' => 'viewer',
+        'accepted_at' => now(),
+    ]);
+
+    $editorTask = $trip->tasks()->create([
+        'title' => 'Book train',
+        'priority' => 'normal',
+    ]);
+    $viewerTask = $trip->tasks()->create([
+        'title' => 'Should remain',
+        'priority' => 'normal',
+    ]);
+
+    $this->actingAs($editor)->delete(route('trips.tasks.destroy', [$trip, $editorTask]))->assertRedirect();
+    $this->assertModelMissing($editorTask);
+
+    $this->actingAs($viewer)->delete(route('trips.tasks.destroy', [$trip, $viewerTask]))->assertForbidden();
+    $this->assertModelExists($viewerTask);
+});
+
 test('viewers cannot update trip planning entries', function () {
     $owner = User::factory()->create();
     $viewer = User::factory()->create();

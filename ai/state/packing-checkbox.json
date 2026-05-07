@@ -1,0 +1,111 @@
+{
+    "module": "packing-checkbox",
+    "status": "planned",
+    "last_updated": "2026-05-06",
+    "current_phase": {
+        "id": "01-ux-and-backend-toggle-contract",
+        "status": "planned",
+        "next_action": "Confirm UX rules and endpoint shape with the user, record decisions[] before editing code."
+    },
+    "phase_status": [
+        {
+            "id": "01-ux-and-backend-toggle-contract",
+            "file": "ai/modules/packing-checkbox/01-ux-and-backend-toggle-contract.md",
+            "status": "planned"
+        },
+        {
+            "id": "02-backend-toggle-endpoint",
+            "file": "ai/modules/packing-checkbox/02-backend-toggle-endpoint.md",
+            "status": "planned"
+        },
+        {
+            "id": "03-frontend-inline-checkbox-and-optimistic-update",
+            "file": "ai/modules/packing-checkbox/03-frontend-inline-checkbox-and-optimistic-update.md",
+            "status": "planned"
+        },
+        {
+            "id": "04-progress-indicator-and-polish",
+            "file": "ai/modules/packing-checkbox/04-progress-indicator-and-polish.md",
+            "status": "planned"
+        },
+        {
+            "id": "05-verification-and-release",
+            "file": "ai/modules/packing-checkbox/05-verification-and-release.md",
+            "status": "planned"
+        }
+    ],
+    "audit_findings": [
+        {
+            "file": "app/Models/PackingItem.php",
+            "lines": "13-18",
+            "finding": "is_packed boolean already exists with cast - no migration needed."
+        },
+        {
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "705-716",
+            "finding": "Read-only row shows static 'Packed' pill only; no inline toggle. User must enter edit mode and submit a form to mark packed."
+        },
+        {
+            "file": "app/Http/Controllers/TripPlanningController.php",
+            "lines": "69-85",
+            "finding": "updatePacking accepts the full validated payload; reusing it for a single-field toggle is heavier than needed."
+        }
+    ],
+    "endpoint_contract": {
+        "method": "PATCH",
+        "url": "/trips/{trip}/packing-items/{packingItem}/packed",
+        "name": "trips.packing-items.toggle-packed",
+        "request_body": { "is_packed": "boolean (required)" },
+        "success_response": "302 back() with success flash",
+        "error_responses": {
+            "validation": "422",
+            "not_authorized": "403",
+            "wrong_trip": "404",
+            "unauthenticated": "302 to login"
+        },
+        "authorization": "trip update policy",
+        "activity_event": {
+            "event_type": "packing.toggled",
+            "changed_area": "packing",
+            "summary_packed": "marked packed: {label}",
+            "summary_unpacked": "marked unpacked: {label}"
+        }
+    },
+    "ux_rules": {
+        "checkbox_position": "row leading edge, replaces the 'Packed' pill",
+        "optimistic": true,
+        "rollback_on_failure": "instant flip back, inline error visible 4s",
+        "visually_de_emphasize_when_packed": "text-muted-foreground line-through on label only",
+        "disabled_when_not_editable": true,
+        "edit_form_in_form_checkbox": "kept for now",
+        "progress_header": "{packed} of {total} packed + thin progress bar using --primary",
+        "hide_packed_filter": {
+            "default": false,
+            "persistence": "localStorage per-trip",
+            "key_template": "packing-hide-packed:{tripId}"
+        },
+        "sort_packed_to_bottom": true,
+        "all_packed_with_filter_on": "celebratory empty state with CheckCircle2 icon"
+    },
+    "decisions": [],
+    "open_questions": [
+        "Confirm 'remove the Packed pill' rather than keeping it next to the checkbox.",
+        "Confirm 'Hide packed' persistence is per-trip in localStorage rather than user-wide.",
+        "Confirm the in-form is_packed checkbox stays in the edit form (vs. removing)."
+    ],
+    "state_owners": {
+        "is_packed_truth": "DB packing_items.is_packed",
+        "optimistic_in_flight": "module-local refs in Trips/Show.vue (togglingIds, rowError)",
+        "filter_state": "ref + localStorage key 'packing-hide-packed:{tripId}'",
+        "progress_count": "computed over trip.packing_items"
+    },
+    "verification": [],
+    "handoff": {
+        "summary": "Plan only - no implementation has begun. Begin with Phase 01 sign-off.",
+        "next_agent_steps": [
+            "Read ai/modules/packing-checkbox/00-master-plan.md.",
+            "Confirm Phase 01 questions with the user, record decisions[].",
+            "Run phases in order. The toggle pattern in this module also fits TripTask.is_complete and TripReminder.done_at - reusable later."
+        ]
+    }
+}

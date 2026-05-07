@@ -49,6 +49,25 @@ class TripPlanningController extends Controller
         return back()->with('success', 'Cost updated.');
     }
 
+    public function destroyCost(Trip $trip, TripCost $cost, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($cost->trip_id === $trip->id, 404);
+
+        $label = $cost->label;
+        $events->record(
+            trip: $trip,
+            eventType: 'cost.deleted',
+            changedArea: 'budget',
+            summary: "deleted cost: {$label}",
+            subject: $cost,
+        );
+
+        $cost->delete();
+
+        return back()->with('success', 'Cost deleted.');
+    }
+
     public function packing(Request $request, Trip $trip, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
@@ -82,6 +101,25 @@ class TripPlanningController extends Controller
         );
 
         return back()->with('success', 'Packing item updated.');
+    }
+
+    public function destroyPacking(Trip $trip, PackingItem $packingItem, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($packingItem->trip_id === $trip->id, 404);
+
+        $label = $packingItem->label;
+        $events->record(
+            trip: $trip,
+            eventType: 'packing.deleted',
+            changedArea: 'packing',
+            summary: "deleted packing item: {$label}",
+            subject: $packingItem,
+        );
+
+        $packingItem->delete();
+
+        return back()->with('success', 'Packing item deleted.');
     }
 
     public function task(Request $request, Trip $trip, TripCollaborationEventService $events): RedirectResponse
@@ -119,6 +157,25 @@ class TripPlanningController extends Controller
         return back()->with('success', 'Task updated.');
     }
 
+    public function destroyTask(Trip $trip, TripTask $task, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($task->trip_id === $trip->id, 404);
+
+        $title = $task->title;
+        $events->record(
+            trip: $trip,
+            eventType: 'task.deleted',
+            changedArea: 'tasks',
+            summary: "deleted task: {$title}",
+            subject: $task,
+        );
+
+        $task->delete();
+
+        return back()->with('success', 'Task deleted.');
+    }
+
     public function document(Request $request, Trip $trip, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
@@ -154,6 +211,25 @@ class TripPlanningController extends Controller
         return back()->with('success', 'Document note updated.');
     }
 
+    public function destroyDocument(Trip $trip, TripDocument $document, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($document->trip_id === $trip->id, 404);
+
+        $title = $document->title;
+        $events->record(
+            trip: $trip,
+            eventType: 'document.deleted',
+            changedArea: 'documents',
+            summary: "deleted document: {$title}",
+            subject: $document,
+        );
+
+        $document->delete();
+
+        return back()->with('success', 'Document note deleted.');
+    }
+
     public function reminder(Request $request, Trip $trip, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
@@ -187,6 +263,25 @@ class TripPlanningController extends Controller
         );
 
         return back()->with('success', 'Reminder updated.');
+    }
+
+    public function destroyReminder(Trip $trip, TripReminder $reminder, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($reminder->trip_id === $trip->id, 404);
+
+        $label = $reminder->label;
+        $events->record(
+            trip: $trip,
+            eventType: 'reminder.deleted',
+            changedArea: 'reminders',
+            summary: "deleted reminder: {$label}",
+            subject: $reminder,
+        );
+
+        $reminder->delete();
+
+        return back()->with('success', 'Reminder deleted.');
     }
 
     private function validatedCost(Request $request): array

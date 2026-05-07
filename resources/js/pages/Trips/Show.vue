@@ -13,6 +13,7 @@ import {
     Printer,
     Share2,
     Sparkles,
+    Trash2,
     Upload,
     Users,
 } from 'lucide-vue-next';
@@ -22,13 +23,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useTripRealtime } from '@/composables/useTripRealtime';
-import { store as storeCost, update as updateCost } from '@/routes/trips/costs';
-import { store as storeDocument, update as updateDocument } from '@/routes/trips/documents';
-import { store as storeItineraryItem, update as updateItineraryItem } from '@/routes/trips/itinerary-items';
-import { store as storePackingItem, update as updatePackingItem } from '@/routes/trips/packing-items';
-import { store as storeReminder, update as updateReminder } from '@/routes/trips/reminders';
-import { store as storeReservation, update as updateReservation } from '@/routes/trips/reservations';
-import { store as storeTask, update as updateTask } from '@/routes/trips/tasks';
+import { destroy as destroyCost, store as storeCost, update as updateCost } from '@/routes/trips/costs';
+import { destroy as destroyDocument, store as storeDocument, update as updateDocument } from '@/routes/trips/documents';
+import { destroy as destroyItineraryItem, store as storeItineraryItem, update as updateItineraryItem } from '@/routes/trips/itinerary-items';
+import { destroy as destroyPackingItem, store as storePackingItem, update as updatePackingItem } from '@/routes/trips/packing-items';
+import { destroy as destroyReminder, store as storeReminder, update as updateReminder } from '@/routes/trips/reminders';
+import { destroy as destroyReservation, store as storeReservation, update as updateReservation } from '@/routes/trips/reservations';
+import { destroy as destroyTask, store as storeTask, update as updateTask } from '@/routes/trips/tasks';
 
 type Trip = {
     id: number;
@@ -244,6 +245,17 @@ const patchEdit = (url: string) => {
     });
 };
 
+const destroyEntry = (url: string, label: string) => {
+    if (!window.confirm(`Delete ${label}?`)) {
+        return;
+    }
+
+    router.delete(url, {
+        preserveScroll: true,
+        onSuccess: cancelEdit,
+    });
+};
+
 const setTaskCompletion = (event: Event) => {
     editData.value.completed_at = (event.target as HTMLInputElement).checked ? new Date().toISOString().slice(0, 16) : null;
 };
@@ -385,6 +397,10 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                             <div class="flex items-center gap-2">
                                                 <span class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">{{ item.status }}</span>
                                                 <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('itinerary', { ...item, trip_day_id: day.id })">Edit</Button>
+                                                <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyItineraryItem.url({ trip: trip.id, itineraryItem: item.id }), item.title)">
+                                                    <Trash2 class="h-4 w-4" />
+                                                    Delete
+                                                </Button>
                                             </div>
                                         </div>
                                         <p v-if="item.location_name" class="mt-2 text-sm text-muted-foreground dark:text-muted-foreground">{{ item.location_name }}</p>
@@ -420,6 +436,10 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                             <div class="flex items-center gap-2">
                                                 <span v-if="task.completed_at" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Done</span>
                                                 <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('task', task)">Edit</Button>
+                                                <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyTask.url({ trip: trip.id, task: task.id }), task.title)">
+                                                    <Trash2 class="h-4 w-4" />
+                                                    Delete
+                                                </Button>
                                             </div>
                                         </div>
                                         <p v-if="task.description" class="mt-2 rounded-md bg-muted p-2 text-sm text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ task.description }}</p>
@@ -553,6 +573,10 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         >
                                             Edit
                                         </Button>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyReservation.url({ trip: trip.id, reservation: reservation.id }), reservation.title)">
+                                            <Trash2 class="h-4 w-4" />
+                                            Delete
+                                        </Button>
                                     </div>
                                 </div>
                             </template>
@@ -647,6 +671,10 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     <div class="flex items-center gap-2">
                                         <span>{{ cost.currency }} {{ cost.actual_amount || cost.planned_amount || '0.00' }}</span>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('cost', cost)">Edit</Button>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyCost.url({ trip: trip.id, cost: cost.id }), cost.label)">
+                                            <Trash2 class="h-4 w-4" />
+                                            Delete
+                                        </Button>
                                     </div>
                                 </div>
                                 <p v-if="cost.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ cost.notes }}</p>
@@ -709,6 +737,10 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <span>{{ item.traveler_name || 'Shared' }}</span>
                                         <span v-if="item.is_packed" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Packed</span>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('packing', item)">Edit</Button>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyPackingItem.url({ trip: trip.id, packingItem: item.id }), item.label)">
+                                            <Trash2 class="h-4 w-4" />
+                                            Delete
+                                        </Button>
                                     </div>
                                 </div>
                                 <p v-if="item.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ item.notes }}</p>
@@ -766,6 +798,10 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     <div class="flex items-center gap-2">
                                         <span v-if="task.completed_at" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Done</span>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('task', task)">Edit</Button>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyTask.url({ trip: trip.id, task: task.id }), task.title)">
+                                            <Trash2 class="h-4 w-4" />
+                                            Delete
+                                        </Button>
                                     </div>
                                 </div>
                                 <p v-if="task.description" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ task.description }}</p>
@@ -813,7 +849,13 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <div class="font-medium">{{ document.title }}</div>
                                         <div class="text-muted-foreground dark:text-muted-foreground">{{ document.document_type }} · expires {{ formatDate(document.expires_on) }}</div>
                                     </div>
-                                    <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('document', document)">Edit</Button>
+                                    <div class="flex items-center gap-2">
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('document', document)">Edit</Button>
+                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyDocument.url({ trip: trip.id, document: document.id }), document.title)">
+                                            <Trash2 class="h-4 w-4" />
+                                            Delete
+                                        </Button>
+                                    </div>
                                 </div>
                                 <p v-if="document.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ document.notes }}</p>
                                 <p v-if="isShared && document.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ document.last_edited_by }}</p>
@@ -944,7 +986,13 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                             <div class="font-medium">{{ reminder.label }}</div>
                                             <div class="text-muted-foreground dark:text-muted-foreground">{{ formatDateTime(reminder.remind_at, reminder.timezone) }}</div>
                                         </div>
-                                        <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('reminder', reminder)">Edit</Button>
+                                        <div class="flex items-center gap-2">
+                                            <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('reminder', reminder)">Edit</Button>
+                                            <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyReminder.url({ trip: trip.id, reminder: reminder.id }), reminder.label)">
+                                                <Trash2 class="h-4 w-4" />
+                                                Delete
+                                            </Button>
+                                        </div>
                                     </div>
                                     <p v-if="reminder.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ reminder.notes }}</p>
                                     <p v-if="isShared && reminder.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ reminder.last_edited_by }}</p>

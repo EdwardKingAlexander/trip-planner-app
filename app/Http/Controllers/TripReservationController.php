@@ -60,6 +60,25 @@ class TripReservationController extends Controller
         return back()->with('success', 'Reservation updated.');
     }
 
+    public function destroy(Trip $trip, Reservation $reservation, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($reservation->trip_id === $trip->id, 404);
+
+        $title = $reservation->title;
+        $events->record(
+            trip: $trip,
+            eventType: 'reservation.deleted',
+            changedArea: 'reservations',
+            summary: "deleted reservation: {$title}",
+            subject: $reservation,
+        );
+
+        $reservation->delete();
+
+        return back()->with('success', 'Reservation deleted.');
+    }
+
     private function validatedReservation(Request $request): array
     {
         return $request->validate([
