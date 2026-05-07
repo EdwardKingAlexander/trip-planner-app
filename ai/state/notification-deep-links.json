@@ -1,37 +1,37 @@
 {
     "module": "notification-deep-links",
-    "status": "planned",
-    "last_updated": "2026-05-06",
+    "status": "verified",
+    "last_updated": "2026-05-07",
     "current_phase": {
-        "id": "01-audit-and-subject-resolver-contract",
-        "status": "planned",
-        "next_action": "Confirm the URL shape, subject map, and fallback rules with the user, then record decisions[] before editing code."
+        "id": "05-verification-and-release",
+        "status": "verified",
+        "next_action": "Complete. Future subject types must update app/Services/NotificationDeepLinkResolver.php and subject_map[] in this state file together."
     },
     "phase_status": [
         {
             "id": "01-audit-and-subject-resolver-contract",
             "file": "ai/modules/notification-deep-links/01-audit-and-subject-resolver-contract.md",
-            "status": "planned"
+            "status": "verified"
         },
         {
             "id": "02-backend-subject-routing-and-read-and-go-endpoint",
             "file": "ai/modules/notification-deep-links/02-backend-subject-routing-and-read-and-go-endpoint.md",
-            "status": "planned"
+            "status": "verified"
         },
         {
             "id": "03-frontend-click-behavior",
             "file": "ai/modules/notification-deep-links/03-frontend-click-behavior.md",
-            "status": "planned"
+            "status": "verified"
         },
         {
             "id": "04-trip-show-focus-targeting",
             "file": "ai/modules/notification-deep-links/04-trip-show-focus-targeting.md",
-            "status": "planned"
+            "status": "verified"
         },
         {
             "id": "05-verification-and-release",
             "file": "ai/modules/notification-deep-links/05-verification-and-release.md",
-            "status": "planned"
+            "status": "verified"
         }
     ],
     "audit_findings": [
@@ -63,8 +63,8 @@
         "unknown_morph_alias": "/trips/{tripId}?from=notification"
     },
     "subject_map": [
-        { "subject_type": "App\\Models\\TripItineraryItem", "panel": "itinerary", "anchor_template": "itinerary-item-{id}" },
-        { "subject_type": "App\\Models\\TripReservation", "panel": "reservations", "anchor_template": "reservation-{id}" },
+        { "subject_type": "App\\Models\\ItineraryItem", "panel": "itinerary", "anchor_template": "itinerary-item-{id}" },
+        { "subject_type": "App\\Models\\Reservation", "panel": "reservations", "anchor_template": "reservation-{id}" },
         { "subject_type": "App\\Models\\TripCost", "panel": "budget", "anchor_template": "cost-{id}" },
         { "subject_type": "App\\Models\\PackingItem", "panel": "packing", "anchor_template": "packing-item-{id}" },
         { "subject_type": "App\\Models\\TripTask", "panel": "tasks", "anchor_template": "task-{id}" },
@@ -72,25 +72,60 @@
         { "subject_type": "App\\Models\\TripReminder", "panel": "reminders", "anchor_template": "reminder-{id}" },
         { "subject_type": "App\\Models\\TripCollaborator", "panel": "sharing", "anchor_template": "collaborator-{id}" }
     ],
-    "decisions": [],
-    "open_questions": [
-        "Confirm 'from=notification' as the marker name (alternatives: 'notif', 'n').",
-        "Confirm pulse-highlight duration and easing (default proposal: 1200ms ease-out).",
-        "Confirm panel-level fallback for stale subjects rather than trip overview drop."
+    "decisions": [
+        "Kept 'from=notification' as the arrival marker.",
+        "Used a 1200ms ease-out focus pulse powered by the active theme ring token.",
+        "Kept stale/deleted subjects on their intended panel with missing=1.",
+        "Corrected the contract to this repo's real model classes: App\\Models\\ItineraryItem and App\\Models\\Reservation.",
+        "Frontend notification.deep_link points at /notifications/{id}/go so inbox links and new-tab opens mark read before redirecting to the resolved target."
     ],
+    "open_questions": [],
     "state_owners": {
         "subject_to_url_resolver": "app/Services/NotificationDeepLinkResolver.php (introduced in Phase 02)",
         "click_dispatch": "resources/js/components/NotificationBell.vue and resources/js/pages/notifications/Index.vue",
         "arrival_behavior": "resources/js/pages/Trips/Show.vue focus-and-pulse logic",
         "contract": "ai/state/notification-deep-links.json subject_map[] - asserted by drift test in Phase 05"
     },
-    "verification": [],
+    "verification": [
+        {
+            "command": "php artisan wayfinder:generate --with-form --no-interaction",
+            "result": "passed; generated notifications.go and trips.packing-items.togglePacked helpers."
+        },
+        {
+            "command": "php artisan test --compact tests/Feature/NotificationGoControllerTest.php",
+            "result": "passed; 4 tests / 9 assertions."
+        },
+        {
+            "command": "php artisan test --compact tests/Unit/NotificationDeepLinkResolverTest.php tests/Unit/DeepLinkContractTest.php",
+            "result": "passed; 11 tests / 11 assertions."
+        },
+        {
+            "command": "php artisan test --compact",
+            "result": "passed; 103 tests / 444 assertions."
+        },
+        {
+            "command": "npm run lint:check",
+            "result": "passed."
+        },
+        {
+            "command": "npm run types:check",
+            "result": "passed before and after production build."
+        },
+        {
+            "command": "npm run build",
+            "result": "passed; Wayfinder generated route/action types during build."
+        },
+        {
+            "command": "vendor/bin/pint --dirty --format agent",
+            "result": "passed; formatted resolver and resolver test imports."
+        }
+    ],
     "handoff": {
-        "summary": "Plan only - no implementation has begun. Begin with Phase 01 sign-off.",
+        "summary": "Notification deep links are implemented. The resolver lives in app/Services/NotificationDeepLinkResolver.php, the read-and-go route is notifications.go, notification payloads expose subject metadata plus a go deep_link, and Trips/Show.vue honors focus/from/hash arrivals with anchors and a pulse. Add a new subject type by editing the resolver SUBJECT_MAP and subject_map[] here in the same change so tests/Unit/DeepLinkContractTest.php stays intentional.",
         "next_agent_steps": [
-            "Read ai/modules/notification-deep-links/00-master-plan.md.",
-            "Confirm contract questions in Phase 01 with the user, record decisions[].",
-            "Run phases in order. Do not skip the Phase 04 anchor-id audit on every panel - the deep links are useless without row anchors."
+            "For a new notification subject, add the model to NotificationDeepLinkResolver::SUBJECT_MAP.",
+            "Add or confirm the matching row id in resources/js/pages/Trips/Show.vue.",
+            "Update subject_map[] in this state file and rerun the resolver/contract tests."
         ]
     }
 }

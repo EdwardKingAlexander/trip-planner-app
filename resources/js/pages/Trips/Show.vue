@@ -3,6 +3,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     Bell,
     CalendarClock,
+    CheckCircle2,
     CheckSquare,
     Download,
     DollarSign,
@@ -18,15 +19,18 @@ import {
     Users,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
+import { nextTick, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { useTripRealtime } from '@/composables/useTripRealtime';
 import { destroy as destroyCost, store as storeCost, update as updateCost } from '@/routes/trips/costs';
 import { destroy as destroyDocument, store as storeDocument, update as updateDocument } from '@/routes/trips/documents';
 import { destroy as destroyItineraryItem, store as storeItineraryItem, update as updateItineraryItem } from '@/routes/trips/itinerary-items';
-import { destroy as destroyPackingItem, store as storePackingItem, update as updatePackingItem } from '@/routes/trips/packing-items';
+import { destroy as destroyPackingItem, store as storePackingItem, togglePacked, update as updatePackingItem } from '@/routes/trips/packing-items';
 import { destroy as destroyReminder, store as storeReminder, update as updateReminder } from '@/routes/trips/reminders';
 import { destroy as destroyReservation, store as storeReservation, update as updateReservation } from '@/routes/trips/reservations';
 import { destroy as destroyTask, store as storeTask, update as updateTask } from '@/routes/trips/tasks';
@@ -73,7 +77,7 @@ type Trip = {
     }>;
     reservations: Array<Record<string, any>>;
     costs: Array<Record<string, any>>;
-    packing_items: Array<Record<string, any>>;
+    packing_items: Array<Record<string, any> & { id: number; is_packed: boolean; sort_order?: number | null; label: string; quantity: number; traveler_name?: string | null; category: string; notes?: string | null }>;
     tasks: Array<Record<string, any>>;
     documents: Array<Record<string, any>>;
     reminders: Array<Record<string, any>>;
@@ -100,6 +104,10 @@ const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 type EditKind = 'itinerary' | 'reservation' | 'cost' | 'packing' | 'task' | 'document' | 'reminder';
 const editing = ref<{ type: EditKind; id: number } | null>(null);
 const editData = ref<Record<string, any>>({});
+const togglingPackingIds = ref(new Set<number>());
+const packingRowErrors = ref<Record<number, string>>({});
+const hidePacked = ref(false);
+const missingSubjectAlert = ref(false);
 
 const itineraryForm = useForm({
     trip_day_id: props.trip.days[0]?.id ?? null,
@@ -192,22 +200,78 @@ const panels = [
     { id: 'packing', label: 'Packing', icon: ListChecks },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare },
     { id: 'documents', label: 'Documents', icon: FileText },
+    { id: 'reminders', label: 'Reminders', icon: Bell },
     { id: 'imports', label: 'Imports', icon: Upload },
     { id: 'sharing', label: 'Sharing', icon: Share2 },
 ];
 
+const hidePackedKey = computed(() => `packing-hide-packed:${props.trip.id}`);
+const packedCount = computed(() => props.trip.packing_items.filter((item) => item.is_packed).length);
+const totalPackingCount = computed(() => props.trip.packing_items.length);
+const packedPercentage = computed(() => totalPackingCount.value === 0 ? 0 : Math.round((packedCount.value / totalPackingCount.value) * 100));
+const visiblePackingItems = computed(() => hidePacked.value
+    ? props.trip.packing_items.filter((item) => !item.is_packed)
+    : props.trip.packing_items);
+const orderedPackingItems = computed(() => [...visiblePackingItems.value].sort((a, b) => {
+    if (a.is_packed === b.is_packed) {
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    }
+
+    return a.is_packed ? 1 : -1;
+}));
+
 onMounted(() => {
+    hidePacked.value = window.localStorage.getItem(hidePackedKey.value) === '1';
+
+    const url = new URL(window.location.href);
+    const focusPanel = url.searchParams.get('focus');
     const hashPanel = window.location.hash.replace('#', '');
 
-    if (panels.some((panel) => panel.id === hashPanel)) {
+    if (focusPanel && panels.some((panel) => panel.id === focusPanel)) {
+        activePanel.value = focusPanel;
+    } else if (panels.some((panel) => panel.id === hashPanel)) {
         activePanel.value = hashPanel;
     }
+
+    if (url.searchParams.get('missing') === '1') {
+        missingSubjectAlert.value = true;
+        window.setTimeout(() => {
+            missingSubjectAlert.value = false;
+        }, 5000);
+    }
+
+    if (url.searchParams.get('from') === 'notification' && window.location.hash) {
+        void focusDeepLinkedElement(window.location.hash.slice(1));
+    }
+});
+
+watch(hidePacked, (value) => {
+    window.localStorage.setItem(hidePackedKey.value, value ? '1' : '0');
 });
 
 const plannedTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.planned_amount ?? 0), 0));
 const actualTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.actual_amount ?? 0), 0));
 const completedTasks = computed(() => props.trip.tasks.filter((task) => task.completed_at).length);
 const isShared = computed(() => (props.trip.collaborators?.length ?? 0) > 0);
+
+const focusDeepLinkedElement = async (anchor: string) => {
+    await nextTick();
+    window.setTimeout(() => {
+        const element = document.getElementById(anchor);
+
+        if (!element) {
+            return;
+        }
+
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.focus({ preventScroll: true });
+        element.setAttribute('data-focus-pulse', 'true');
+
+        window.setTimeout(() => {
+            element.removeAttribute('data-focus-pulse');
+        }, 1200);
+    }, 0);
+};
 
 const post = (form: ReturnType<typeof useForm>, url: string, resetFields?: string[]) => {
     form.post(url, {
@@ -258,6 +322,44 @@ const destroyEntry = (url: string, label: string) => {
 
 const setTaskCompletion = (event: Event) => {
     editData.value.completed_at = (event.target as HTMLInputElement).checked ? new Date().toISOString().slice(0, 16) : null;
+};
+
+const setPackingRowError = (id: number, message: string) => {
+    packingRowErrors.value = { ...packingRowErrors.value, [id]: message };
+
+    window.setTimeout(() => {
+        const nextErrors = { ...packingRowErrors.value };
+        delete nextErrors[id];
+        packingRowErrors.value = nextErrors;
+    }, 4000);
+};
+
+const togglePackedItem = (item: Record<string, any> & { id: number; is_packed: boolean; label: string }) => {
+    if (!props.trip.can_edit || togglingPackingIds.value.has(item.id)) {
+        return;
+    }
+
+    const previous = item.is_packed;
+    item.is_packed = !previous;
+    togglingPackingIds.value = new Set(togglingPackingIds.value).add(item.id);
+
+    router.patch(
+        togglePacked.url({ trip: props.trip.id, packingItem: item.id }),
+        { is_packed: item.is_packed },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onError: () => {
+                item.is_packed = previous;
+                setPackingRowError(item.id, 'Could not save. Try again.');
+            },
+            onFinish: () => {
+                const nextIds = new Set(togglingPackingIds.value);
+                nextIds.delete(item.id);
+                togglingPackingIds.value = nextIds;
+            },
+        },
+    );
 };
 
 const destroyCollaborator = (id: number) => {
@@ -343,6 +445,10 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 </button>
             </nav>
 
+            <Alert v-if="missingSubjectAlert">
+                <AlertDescription>That item is no longer available.</AlertDescription>
+            </Alert>
+
             <section v-if="activePanel === 'itinerary'" class="grid gap-4 lg:grid-cols-[1fr_22rem]">
                 <div class="space-y-4">
                     <Card v-for="day in trip.days" :key="day.id" class="travel-panel">
@@ -351,7 +457,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                         </CardHeader>
                         <CardContent class="space-y-3">
                             <div v-if="day.items.length || day.tasks.length" class="space-y-2">
-                                <div v-for="item in day.items" :key="item.id" class="rounded-md border border-border p-3 dark:border-border">
+                                <div v-for="item in day.items" :id="`itinerary-item-${item.id}`" :key="item.id" tabindex="-1" class="rounded-md border border-border p-3 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-border">
                                     <template v-if="isEditing('itinerary', item.id)">
                                         <form class="grid gap-3" @submit.prevent="patchEdit(updateItineraryItem.url({ trip: trip.id, itineraryItem: item.id }))">
                                             <select v-model="editData.trip_day_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
@@ -483,7 +589,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
 
             <section v-if="activePanel === 'reservations'" class="grid gap-4 lg:grid-cols-[1fr_24rem]">
                 <div class="grid gap-3">
-                    <Card v-for="reservation in trip.reservations" :key="reservation.id" class="travel-panel">
+                    <Card v-for="reservation in trip.reservations" :id="`reservation-${reservation.id}`" :key="reservation.id" tabindex="-1" class="travel-panel outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
                         <CardContent class="pt-6">
                             <template v-if="isEditing('reservation', reservation.id)">
                                 <form class="grid gap-3" @submit.prevent="patchEdit(updateReservation.url({ trip: trip.id, reservation: reservation.id }))">
@@ -643,7 +749,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <div class="text-2xl font-semibold">${{ actualTotal.toFixed(2) }}</div>
                             </div>
                         </div>
-                        <div v-for="cost in trip.costs" :key="cost.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
+                        <div v-for="cost in trip.costs" :id="`cost-${cost.id}`" :key="cost.id" tabindex="-1" class="rounded-md border border-border p-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-border">
                             <form v-if="isEditing('cost', cost.id)" class="grid gap-3" @submit.prevent="patchEdit(updateCost.url({ trip: trip.id, cost: cost.id }))">
                                 <Input class="travel-touch" v-model="editData.label" placeholder="Label" />
                                 <select v-model="editData.category" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
@@ -710,9 +816,33 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
 
             <section v-if="activePanel === 'packing'" class="grid gap-4 lg:grid-cols-[1fr_22rem]">
                 <Card class="travel-panel">
-                    <CardHeader><CardTitle class="text-base">Packing List</CardTitle></CardHeader>
+                    <CardHeader class="gap-3">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="min-w-0 flex-1">
+                                <CardTitle class="text-base">Packing List<span v-if="totalPackingCount"> · {{ packedCount }} of {{ totalPackingCount }} packed</span></CardTitle>
+                                <div v-if="totalPackingCount" class="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                                    <div class="h-full rounded-full bg-primary transition-[width]" :style="{ width: `${packedPercentage}%` }" />
+                                </div>
+                            </div>
+                            <label v-if="totalPackingCount" class="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground">
+                                <input v-model="hidePacked" type="checkbox" class="rounded border-input" />
+                                Hide packed
+                            </label>
+                        </div>
+                    </CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="item in trip.packing_items" :key="item.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
+                        <div v-if="hidePacked && totalPackingCount > 0 && orderedPackingItems.length === 0" class="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                            <CheckCircle2 class="mx-auto size-6 text-primary" />
+                            <p class="mt-2">Everything's packed. Bon voyage.</p>
+                        </div>
+                        <div
+                            v-for="item in orderedPackingItems"
+                            :id="`packing-item-${item.id}`"
+                            :key="item.id"
+                            tabindex="-1"
+                            class="rounded-md border border-border p-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-border"
+                            :class="{ 'bg-muted/40': item.is_packed }"
+                        >
                             <form v-if="isEditing('packing', item.id)" class="grid gap-3" @submit.prevent="patchEdit(updatePackingItem.url({ trip: trip.id, packingItem: item.id }))">
                                 <Input class="travel-touch" v-model="editData.label" placeholder="Item" />
                                 <Input class="travel-touch" v-model="editData.traveler_name" placeholder="Traveler name" />
@@ -731,11 +861,24 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 </div>
                             </form>
                             <template v-else>
-                                <div class="flex items-center justify-between gap-3">
-                                    <span>{{ item.quantity }}x {{ item.label }} <span class="text-muted-foreground dark:text-muted-foreground">· {{ item.category }}</span></span>
-                                    <div class="flex items-center gap-2">
-                                        <span>{{ item.traveler_name || 'Shared' }}</span>
-                                        <span v-if="item.is_packed" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Packed</span>
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="flex min-w-0 items-start gap-3">
+                                        <Checkbox
+                                            :model-value="item.is_packed"
+                                            :disabled="!trip.can_edit || togglingPackingIds.has(item.id)"
+                                            class="mt-0.5 size-5"
+                                            :aria-label="`${item.is_packed ? 'Mark' : 'Mark'} ${item.label} as ${item.is_packed ? 'unpacked' : 'packed'}`"
+                                            @update:model-value="togglePackedItem(item)"
+                                        />
+                                        <div class="min-w-0">
+                                            <div>
+                                                <span :class="item.is_packed ? 'text-muted-foreground line-through' : 'font-medium'">{{ item.quantity }}x {{ item.label }}</span>
+                                                <span class="text-muted-foreground dark:text-muted-foreground"> · {{ item.category }}</span>
+                                            </div>
+                                            <p class="mt-1 text-xs text-muted-foreground dark:text-muted-foreground">{{ item.traveler_name || 'Shared' }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex shrink-0 items-center gap-2">
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('packing', item)">Edit</Button>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyPackingItem.url({ trip: trip.id, packingItem: item.id }), item.label)">
                                             <Trash2 class="h-4 w-4" />
@@ -743,6 +886,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         </Button>
                                     </div>
                                 </div>
+                                <p v-if="packingRowErrors[item.id]" class="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">{{ packingRowErrors[item.id] }}</p>
                                 <p v-if="item.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ item.notes }}</p>
                                 <p v-if="isShared && item.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ item.last_edited_by }}</p>
                             </template>
@@ -770,7 +914,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Tasks · {{ completedTasks }}/{{ trip.tasks.length }} done</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="task in trip.tasks" :key="task.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
+                        <div v-for="task in trip.tasks" :id="`task-${task.id}`" :key="task.id" tabindex="-1" class="rounded-md border border-border p-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-border">
                             <form v-if="isEditing('task', task.id)" class="grid gap-3" @submit.prevent="patchEdit(updateTask.url({ trip: trip.id, task: task.id }))">
                                 <Input class="travel-touch" v-model="editData.title" placeholder="Task" />
                                 <Input class="travel-touch" v-model="editData.due_at" type="datetime-local" />
@@ -832,7 +976,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Documents</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="document in trip.documents" :key="document.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
+                        <div v-for="document in trip.documents" :id="`document-${document.id}`" :key="document.id" tabindex="-1" class="rounded-md border border-border p-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-border">
                             <form v-if="isEditing('document', document.id)" class="grid gap-3" @submit.prevent="patchEdit(updateDocument.url({ trip: trip.id, document: document.id }))">
                                 <Input class="travel-touch" v-model="editData.title" placeholder="Document title" />
                                 <Input class="travel-touch" v-model="editData.document_type" placeholder="Type" />
@@ -938,11 +1082,11 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 </Card>
             </section>
 
-            <section v-if="activePanel === 'sharing'" class="grid gap-4 lg:grid-cols-[1fr_22rem]">
+            <section v-if="activePanel === 'sharing' || activePanel === 'reminders'" class="grid gap-4 lg:grid-cols-[1fr_22rem]">
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="flex items-center gap-2 text-base"><Users class="h-5 w-5" /> Shared Travelers</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="collaborator in trip.collaborators" :key="collaborator.id" class="flex items-center justify-between rounded-md border border-border p-3 text-sm dark:border-border">
+                        <div v-for="collaborator in trip.collaborators" :id="`collaborator-${collaborator.id}`" :key="collaborator.id" tabindex="-1" class="flex items-center justify-between rounded-md border border-border p-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-border">
                             <div>
                                 <div class="font-medium">{{ collaborator.email }}</div>
                                 <div class="text-muted-foreground dark:text-muted-foreground">{{ collaborator.role }} · {{ collaborator.accepted_at ? 'accepted' : 'pending' }}</div>
@@ -969,7 +1113,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     <Card class="travel-panel">
                         <CardHeader><CardTitle class="flex items-center gap-2 text-base"><Bell class="h-5 w-5" /> Reminders</CardTitle></CardHeader>
                         <CardContent class="space-y-2">
-                            <div v-for="reminder in trip.reminders" :key="reminder.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
+                            <div v-for="reminder in trip.reminders" :id="`reminder-${reminder.id}`" :key="reminder.id" tabindex="-1" class="rounded-md border border-border p-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-border">
                                 <form v-if="isEditing('reminder', reminder.id)" class="grid gap-3" @submit.prevent="patchEdit(updateReminder.url({ trip: trip.id, reminder: reminder.id }))">
                                     <Input class="travel-touch" v-model="editData.label" placeholder="Reminder label" />
                                     <Input class="travel-touch" v-model="editData.remind_at" type="datetime-local" />

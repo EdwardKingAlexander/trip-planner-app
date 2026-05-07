@@ -5,7 +5,6 @@ import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { index as notificationsIndex, readAll } from '@/routes/notifications';
-import { show as tripShow } from '@/routes/trips';
 import type { TripNotification } from '@/types';
 
 defineProps<{
@@ -75,7 +74,7 @@ function formatRelative(value: string | null): string {
                     <Link
                         v-for="notification in items"
                         :key="notification.id"
-                        :href="notification.trip_id ? tripShow(notification.trip_id) : notificationsIndex()"
+                        :href="notification.deep_link"
                         class="flex items-start gap-3 rounded-lg border border-border bg-card p-4"
                         :class="{ 'border-primary/40 bg-primary/5': !notification.read_at }"
                     >

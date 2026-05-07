@@ -574,4 +574,23 @@
     .travel-touch {
         @apply min-h-11;
     }
+
+    [data-focus-pulse='true'] {
+        animation: focus-pulse 1200ms ease-out 1;
+        animation-fill-mode: both;
+    }
+
+    @keyframes focus-pulse {
+        0% {
+            box-shadow: 0 0 0 0 color-mix(in srgb, var(--ring) 0%, transparent);
+        }
+
+        30% {
+            box-shadow: 0 0 0 6px color-mix(in srgb, var(--ring) 35%, transparent);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 color-mix(in srgb, var(--ring) 0%, transparent);
+        }
+    }
 }

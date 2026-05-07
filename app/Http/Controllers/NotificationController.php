@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\NotificationDeepLinkResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,6 +45,17 @@ class NotificationController extends Controller
         return back();
     }
 
+    public function go(Request $request, string $id, NotificationDeepLinkResolver $deepLinks): RedirectResponse
+    {
+        $notification = $request->user()->notifications()->findOrFail($id);
+
+        if ($notification->unread()) {
+            $notification->markAsRead();
+        }
+
+        return redirect()->to($deepLinks($notification));
+    }
+
     public function readAll(Request $request): RedirectResponse
     {
         $request->user()->unreadNotifications->markAsRead();
@@ -67,6 +79,9 @@ class NotificationController extends Controller
             'actor_first_name' => $data['actor_first_name'] ?? $data['actor_name'] ?? null,
             'changed_area' => $data['changed_area'] ?? null,
             'event_type' => $data['event_type'] ?? null,
+            'subject_type' => $data['subject_type'] ?? null,
+            'subject_id' => $data['subject_id'] ?? null,
+            'deep_link' => route('notifications.go', $notification->id, absolute: false),
             'summary' => $data['summary'] ?? null,
         ];
     }

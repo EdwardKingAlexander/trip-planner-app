@@ -11,6 +11,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { go as notificationGo } from '@/routes/notifications';
 import type { NotificationsPayload, TripNotification } from '@/types';
 
 const page = usePage<{ notifications?: NotificationsPayload }>();
@@ -50,19 +51,9 @@ const summaryText = (notification: TripNotification): string => {
 };
 
 const openNotification = (notification: TripNotification): void => {
-    router.post(
-        `/notifications/${notification.id}/read`,
-        {},
-        {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => {
-                if (notification.trip_id) {
-                    router.visit(`/trips/${notification.trip_id}`);
-                }
-            },
-        },
-    );
+    notification.read_at ??= new Date().toISOString();
+
+    router.visit(notificationGo(notification.id).url);
 };
 
 const markAllRead = (): void => {

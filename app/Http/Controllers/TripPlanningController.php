@@ -103,6 +103,28 @@ class TripPlanningController extends Controller
         return back()->with('success', 'Packing item updated.');
     }
 
+    public function togglePacked(Request $request, Trip $trip, PackingItem $packingItem, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($packingItem->trip_id === $trip->id, 404);
+
+        $validated = $request->validate([
+            'is_packed' => ['required', 'boolean'],
+        ]);
+
+        $packingItem->update(['is_packed' => $validated['is_packed']]);
+
+        $events->record(
+            trip: $trip,
+            eventType: 'packing.toggled',
+            changedArea: 'packing',
+            summary: ($validated['is_packed'] ? 'marked packed: ' : 'marked unpacked: ').$packingItem->label,
+            subject: $packingItem,
+        );
+
+        return back()->with('success', $validated['is_packed'] ? 'Marked packed.' : 'Marked unpacked.');
+    }
+
     public function destroyPacking(Trip $trip, PackingItem $packingItem, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);

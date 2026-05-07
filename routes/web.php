@@ -40,6 +40,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('trips/{trip}/costs/{cost}', [TripPlanningController::class, 'destroyCost'])->name('trips.costs.destroy');
     Route::post('trips/{trip}/packing-items', [TripPlanningController::class, 'packing'])->name('trips.packing-items.store');
     Route::patch('trips/{trip}/packing-items/{packingItem}', [TripPlanningController::class, 'updatePacking'])->name('trips.packing-items.update');
+    Route::patch('trips/{trip}/packing-items/{packingItem}/packed', [TripPlanningController::class, 'togglePacked'])->name('trips.packing-items.toggle-packed');
     Route::delete('trips/{trip}/packing-items/{packingItem}', [TripPlanningController::class, 'destroyPacking'])->name('trips.packing-items.destroy');
     Route::post('trips/{trip}/tasks', [TripPlanningController::class, 'task'])->name('trips.tasks.store');
     Route::patch('trips/{trip}/tasks/{task}', [TripPlanningController::class, 'updateTask'])->name('trips.tasks.update');
@@ -60,6 +61,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('trips/{trip}/automation/{suggestion}/dismiss', [TripAutomationController::class, 'dismiss'])->name('trips.automation.dismiss');
 
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifications/{id}/go', [NotificationController::class, 'go'])->name('notifications.go');
     Route::post('notifications/{id}/read', [NotificationController::class, 'read'])->name('notifications.read');
     Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
 });

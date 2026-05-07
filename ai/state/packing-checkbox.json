@@ -1,37 +1,37 @@
 {
     "module": "packing-checkbox",
-    "status": "planned",
-    "last_updated": "2026-05-06",
+    "status": "verified",
+    "last_updated": "2026-05-07",
     "current_phase": {
-        "id": "01-ux-and-backend-toggle-contract",
-        "status": "planned",
-        "next_action": "Confirm UX rules and endpoint shape with the user, record decisions[] before editing code."
+        "id": "05-verification-and-release",
+        "status": "verified",
+        "next_action": "Complete. Future single-field toggles can reuse the endpoint plus optimistic-row pattern."
     },
     "phase_status": [
         {
             "id": "01-ux-and-backend-toggle-contract",
             "file": "ai/modules/packing-checkbox/01-ux-and-backend-toggle-contract.md",
-            "status": "planned"
+            "status": "verified"
         },
         {
             "id": "02-backend-toggle-endpoint",
             "file": "ai/modules/packing-checkbox/02-backend-toggle-endpoint.md",
-            "status": "planned"
+            "status": "verified"
         },
         {
             "id": "03-frontend-inline-checkbox-and-optimistic-update",
             "file": "ai/modules/packing-checkbox/03-frontend-inline-checkbox-and-optimistic-update.md",
-            "status": "planned"
+            "status": "verified"
         },
         {
             "id": "04-progress-indicator-and-polish",
             "file": "ai/modules/packing-checkbox/04-progress-indicator-and-polish.md",
-            "status": "planned"
+            "status": "verified"
         },
         {
             "id": "05-verification-and-release",
             "file": "ai/modules/packing-checkbox/05-verification-and-release.md",
-            "status": "planned"
+            "status": "verified"
         }
     ],
     "audit_findings": [
@@ -87,25 +87,55 @@
         "sort_packed_to_bottom": true,
         "all_packed_with_filter_on": "celebratory empty state with CheckCircle2 icon"
     },
-    "decisions": [],
-    "open_questions": [
-        "Confirm 'remove the Packed pill' rather than keeping it next to the checkbox.",
-        "Confirm 'Hide packed' persistence is per-trip in localStorage rather than user-wide.",
-        "Confirm the in-form is_packed checkbox stays in the edit form (vs. removing)."
+    "decisions": [
+        "Removed the redundant Packed pill and made the checkbox the packed-state indicator.",
+        "Persisted Hide packed per trip in localStorage using packing-hide-packed:{tripId}.",
+        "Kept the in-form is_packed checkbox for edit-form parity.",
+        "Used trips.packing-items.toggle-packed as a focused PATCH endpoint that records packing.toggled activity events."
     ],
+    "open_questions": [],
     "state_owners": {
         "is_packed_truth": "DB packing_items.is_packed",
         "optimistic_in_flight": "module-local refs in Trips/Show.vue (togglingIds, rowError)",
         "filter_state": "ref + localStorage key 'packing-hide-packed:{tripId}'",
         "progress_count": "computed over trip.packing_items"
     },
-    "verification": [],
+    "verification": [
+        {
+            "command": "php artisan wayfinder:generate --with-form --no-interaction",
+            "result": "passed; generated trips.packing-items.togglePacked helper."
+        },
+        {
+            "command": "php artisan test --compact tests/Feature/PackingTogglePackedTest.php",
+            "result": "passed; 6 tests / 14 assertions."
+        },
+        {
+            "command": "php artisan test --compact",
+            "result": "passed; 103 tests / 444 assertions."
+        },
+        {
+            "command": "npm run lint:check",
+            "result": "passed."
+        },
+        {
+            "command": "npm run types:check",
+            "result": "passed before and after production build."
+        },
+        {
+            "command": "npm run build",
+            "result": "passed; Wayfinder generated route/action types during build."
+        },
+        {
+            "command": "vendor/bin/pint --dirty --format agent",
+            "result": "passed."
+        }
+    ],
     "handoff": {
-        "summary": "Plan only - no implementation has begun. Begin with Phase 01 sign-off.",
+        "summary": "Packing checkbox is implemented. The endpoint lives at TripPlanningController::togglePacked and route trips.packing-items.toggle-packed. The optimistic checkbox, rollback errors, progress count/bar, packed sorting, and per-trip Hide packed localStorage state live in resources/js/pages/Trips/Show.vue. The same pattern can be reused for future task/reminder toggles with a focused PATCH endpoint and module-local in-flight/error refs.",
         "next_agent_steps": [
-            "Read ai/modules/packing-checkbox/00-master-plan.md.",
-            "Confirm Phase 01 questions with the user, record decisions[].",
-            "Run phases in order. The toggle pattern in this module also fits TripTask.is_complete and TripReminder.done_at - reusable later."
+            "For another single-field toggle, add a focused controller action and named route.",
+            "Regenerate Wayfinder with --with-form.",
+            "Copy the module-local optimistic Set plus row-error pattern in Trips/Show.vue."
         ]
     }
 }
