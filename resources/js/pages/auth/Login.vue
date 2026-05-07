@@ -93,7 +93,7 @@ defineProps<{
                 :tabindex="4"
                 :disabled="processing"
                 data-test="login-button"
-                class="mt-4 w-full bg-[#1b6b6f] hover:bg-[#155356]"
+                class="mt-4 w-full bg-primary hover:bg-primary/90"
             >
                 <Spinner v-if="processing" />
                 Log in

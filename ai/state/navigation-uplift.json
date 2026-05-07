@@ -1,0 +1,175 @@
+{
+    "module": "navigation-uplift",
+    "status": "verified",
+    "last_updated": "2026-05-07",
+    "current_phase": {
+        "id": "05-verification-and-release",
+        "status": "verified",
+        "next_action": "Complete. Future changes should update resources/js/lib/navigation.ts, route definitions, and this state contract together."
+    },
+    "phase_status": [
+        {
+            "id": "01-navigation-audit-and-information-architecture",
+            "file": "ai/modules/navigation-uplift/01-navigation-audit-and-information-architecture.md",
+            "status": "verified"
+        },
+        {
+            "id": "02-typed-routes-and-active-state",
+            "file": "ai/modules/navigation-uplift/02-typed-routes-and-active-state.md",
+            "status": "verified"
+        },
+        {
+            "id": "03-global-pages-and-nav-cleanup",
+            "file": "ai/modules/navigation-uplift/03-global-pages-and-nav-cleanup.md",
+            "status": "verified"
+        },
+        {
+            "id": "04-header-and-mobile-sheet-parity",
+            "file": "ai/modules/navigation-uplift/04-header-and-mobile-sheet-parity.md",
+            "status": "verified"
+        },
+        {
+            "id": "05-verification-and-release",
+            "file": "ai/modules/navigation-uplift/05-verification-and-release.md",
+            "status": "verified"
+        }
+    ],
+    "audit_findings": [
+        {
+            "file": "resources/js/components/AppSidebar.vue",
+            "lines": "29-70",
+            "finding": "Six of eight sidebar items hard-code href to '/trips'. Only Trips and Search resolve to distinct destinations."
+        },
+        {
+            "file": "resources/js/components/AppHeader.vue",
+            "lines": "64-75",
+            "finding": "Ships starter-kit Repository and Documentation external links to authenticated users."
+        },
+        {
+            "file": "resources/js/components/AppHeader.vue",
+            "lines": "192-202",
+            "finding": "Search icon button has no @click and no Link wrapper - dead control."
+        },
+        {
+            "file": "resources/js/components/AppHeader.vue",
+            "lines": "82-147",
+            "finding": "Mobile Sheet renders only header mainNavItems (Dashboard) - mismatched with sidebar item set."
+        },
+        {
+            "file": "routes/web.php (and route:list output)",
+            "finding": "notifications.index exists but is not exposed in any nav surface."
+        }
+    ],
+    "proposed_global_nav": [
+        {
+            "title": "Trips",
+            "route": "trips.index",
+            "wayfinder_import": "@/routes/trips#index",
+            "match_mode": "prefix",
+            "exclude_prefixes": ["/trips/search"]
+        },
+        {
+            "title": "Search",
+            "route": "trips.search",
+            "wayfinder_import": "@/routes/trips#search",
+            "match_mode": "exact"
+        },
+        {
+            "title": "Calendar",
+            "route": "calendar.index",
+            "wayfinder_import": "@/routes/calendar#index",
+            "match_mode": "exact",
+            "new_route": true
+        },
+        {
+            "title": "Reminders",
+            "route": "reminders.index",
+            "wayfinder_import": "@/routes/reminders#index",
+            "match_mode": "exact",
+            "new_route": true
+        },
+        {
+            "title": "Notifications",
+            "route": "notifications.index",
+            "wayfinder_import": "@/routes/notifications#index",
+            "match_mode": "exact"
+        }
+    ],
+    "removed_from_sidebar": [
+        {
+            "title": "Reservations",
+            "where_to_find_instead": "Trip show page Reservations tab"
+        },
+        {
+            "title": "Packing",
+            "where_to_find_instead": "Trip show page Packing tab"
+        },
+        {
+            "title": "Documents",
+            "where_to_find_instead": "Trip show page Documents tab"
+        },
+        {
+            "title": "Sharing",
+            "where_to_find_instead": "Trip show page Sharing tab"
+        }
+    ],
+    "decisions": [
+        {
+            "date": "2026-05-07",
+            "decision": "Proceed with the proposed five-item global nav: Trips, Search, Calendar, Reminders, Notifications.",
+            "reason": "The user asked to implement the module, so the planned IA is treated as accepted."
+        },
+        {
+            "date": "2026-05-07",
+            "decision": "Calendar is a real cross-trip month/agenda page.",
+            "reason": "The existing trip detail pages already cover trip-scoped itinerary views."
+        },
+        {
+            "date": "2026-05-07",
+            "decision": "Reminders is a real cross-trip inbox.",
+            "reason": "Reminders span trips and need a single action surface."
+        }
+    ],
+    "open_questions": [
+    ],
+    "state_owners": {
+        "global_nav_list": "resources/js/lib/navigation.ts (introduced in Phase 04)",
+        "active_state": "resources/js/composables/useCurrentUrl.ts (extended in Phase 02)",
+        "match_rules_contract": "ai/state/navigation-uplift.json proposed_global_nav[] (this file) - asserted by drift test in Phase 05"
+    },
+    "verification": [
+        {
+            "command": "php artisan test --compact",
+            "result": "passed",
+            "details": "79 tests, 367 assertions"
+        },
+        {
+            "command": "npm run lint:check",
+            "result": "passed",
+            "details": "ESLint completed with no errors"
+        },
+        {
+            "command": "npm run build",
+            "result": "passed",
+            "details": "Vite production build completed; Wayfinder generated actions, routes, and form variants"
+        },
+        {
+            "command": "npm run types:check",
+            "result": "passed",
+            "details": "vue-tsc --noEmit completed with no errors"
+        },
+        {
+            "command": "vendor\\bin\\pint --dirty --format agent",
+            "result": "passed",
+            "details": "Pint reported no remaining dirty PHP formatting changes"
+        }
+    ],
+    "handoff": {
+        "summary": "Navigation uplift is implemented and verified. The global item list and Wayfinder route helpers live in resources/js/lib/navigation.ts; active-state normalization and prefix exclusion rules live in resources/js/composables/useCurrentUrl.ts; the source-of-truth contract remains proposed_global_nav[] in this state file and is covered by tests/Unit/Navigation/NavigationContractTest.php. To add a sixth global item, add or expose the route, add the item in resources/js/lib/navigation.ts, and update proposed_global_nav[] here so the drift test stays intentional.",
+        "next_agent_steps": [
+            "Keep Reservations, Packing, Documents, and Sharing as trip-scoped tabs unless a new cross-trip aggregator module is planned.",
+            "Regenerate Wayfinder routes after adding any future global route.",
+            "Run php artisan test --compact, npm run lint:check, npm run build, npm run types:check, and Pint before marking future navigation changes verified."
+        ]
+    }
+}

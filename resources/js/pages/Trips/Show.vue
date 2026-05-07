@@ -16,7 +16,7 @@ import {
     Upload,
     Users,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,6 +68,7 @@ type Trip = {
             is_all_day: boolean;
             last_edited_by?: string | null;
         }>;
+        tasks: Array<Record<string, any>>;
     }>;
     reservations: Array<Record<string, any>>;
     costs: Array<Record<string, any>>;
@@ -194,6 +195,14 @@ const panels = [
     { id: 'sharing', label: 'Sharing', icon: Share2 },
 ];
 
+onMounted(() => {
+    const hashPanel = window.location.hash.replace('#', '');
+
+    if (panels.some((panel) => panel.id === hashPanel)) {
+        activePanel.value = hashPanel;
+    }
+});
+
 const plannedTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.planned_amount ?? 0), 0));
 const actualTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.actual_amount ?? 0), 0));
 const completedTasks = computed(() => props.trip.tasks.filter((task) => task.completed_at).length);
@@ -271,7 +280,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <div class="travel-stripe" />
                 <div class="grid gap-6 p-6 lg:grid-cols-[1fr_auto] lg:items-end">
                     <div>
-                        <Link href="/trips" class="inline-flex min-h-11 items-center text-sm font-medium text-[#0f777f]">Back to trips</Link>
+                        <Link href="/trips" class="inline-flex min-h-11 items-center text-sm font-medium text-primary">Back to trips</Link>
                         <h1 class="mt-3 text-3xl font-semibold sm:text-5xl">{{ trip.name }}</h1>
                         <p class="travel-muted mt-2 text-sm">
                             {{ trip.destination }} · {{ formatDate(trip.starts_on) }} - {{ formatDate(trip.ends_on) }} · {{ trip.length }}
@@ -279,18 +288,18 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                         <p v-if="trip.summary" class="travel-muted mt-4 max-w-3xl text-sm leading-6">{{ trip.summary }}</p>
                     </div>
                     <div class="space-y-3">
-                        <div class="grid grid-cols-3 gap-2 rounded-lg border border-[#c8dde0] bg-white/85 p-3 text-center shadow-xs dark:border-[#25414a] dark:bg-white/5">
-                            <div class="rounded-md bg-[#ecf8f5] p-2 dark:bg-[#143039]">
+                        <div class="grid grid-cols-3 gap-2 rounded-lg border border-border bg-card/85 p-3 text-center shadow-xs dark:border-border dark:bg-card/60">
+                            <div class="rounded-md bg-muted p-2 dark:bg-muted">
                                 <div class="text-2xl font-semibold">{{ trip.reservations.length }}</div>
-                                <div class="text-xs text-[#52666b] dark:text-[#b8d5d2]">Bookings</div>
+                                <div class="text-xs text-muted-foreground dark:text-muted-foreground">Bookings</div>
                             </div>
-                            <div class="rounded-md bg-[#fff4df] p-2 dark:bg-[#332819]">
+                            <div class="rounded-md bg-muted p-2 dark:bg-muted">
                                 <div class="text-2xl font-semibold">{{ trip.days.length }}</div>
-                                <div class="text-xs text-[#52666b] dark:text-[#f2d6a8]">Days</div>
+                                <div class="text-xs text-muted-foreground dark:text-muted-foreground">Days</div>
                             </div>
-                            <div class="rounded-md bg-[#eef3ff] p-2 dark:bg-[#17243b]">
+                            <div class="rounded-md bg-muted p-2 dark:bg-muted">
                                 <div class="text-2xl font-semibold">{{ trip.collaborators.length }}</div>
-                                <div class="text-xs text-[#52666b] dark:text-[#bccfff]">Shared</div>
+                                <div class="text-xs text-muted-foreground dark:text-muted-foreground">Shared</div>
                             </div>
                         </div>
                         <div class="grid gap-2 min-[380px]:grid-cols-3">
@@ -314,7 +323,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     :key="panel.id"
                     type="button"
                     class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium xl:justify-start"
-                    :class="activePanel === panel.id ? 'bg-[#0f777f] text-white shadow-sm' : 'text-[#52666b] hover:bg-[#e4f5f6] dark:text-[#b8d5d2] dark:hover:bg-[#183640]'"
+                    :class="activePanel === panel.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-accent dark:text-muted-foreground dark:hover:bg-accent'"
                     @click="activePanel = panel.id"
                 >
                     <component :is="panel.icon" class="h-4 w-4" />
@@ -329,8 +338,8 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             <CardTitle class="text-base">{{ day.title }} · {{ formatDate(day.date) }}</CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-3">
-                            <div v-if="day.items.length" class="space-y-2">
-                                <div v-for="item in day.items" :key="item.id" class="rounded-md border border-[#d8eaec] p-3 dark:border-[#25414a]">
+                            <div v-if="day.items.length || day.tasks.length" class="space-y-2">
+                                <div v-for="item in day.items" :key="item.id" class="rounded-md border border-border p-3 dark:border-border">
                                     <template v-if="isEditing('itinerary', item.id)">
                                         <form class="grid gap-3" @submit.prevent="patchEdit(updateItineraryItem.url({ trip: trip.id, itineraryItem: item.id }))">
                                             <select v-model="editData.trip_day_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
@@ -371,20 +380,54 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <div class="flex items-start justify-between gap-3">
                                             <div>
                                                 <div class="text-sm font-semibold">{{ item.title }}</div>
-                                                <div class="text-xs text-[#52666b] dark:text-[#b8d5d2]">{{ item.type }} · {{ formatDateTime(item.starts_at, item.timezone) }}</div>
+                                                <div class="text-xs text-muted-foreground dark:text-muted-foreground">{{ item.type }} · {{ formatDateTime(item.starts_at, item.timezone) }}</div>
                                             </div>
                                             <div class="flex items-center gap-2">
-                                                <span class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">{{ item.status }}</span>
+                                                <span class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">{{ item.status }}</span>
                                                 <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('itinerary', { ...item, trip_day_id: day.id })">Edit</Button>
                                             </div>
                                         </div>
-                                        <p v-if="item.location_name" class="mt-2 text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ item.location_name }}</p>
-                                        <p v-if="item.description" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-sm text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ item.description }}</p>
-                                        <p v-if="isShared && item.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ item.last_edited_by }}</p>
+                                        <p v-if="item.location_name" class="mt-2 text-sm text-muted-foreground dark:text-muted-foreground">{{ item.location_name }}</p>
+                                        <p v-if="item.description" class="mt-2 rounded-md bg-muted p-2 text-sm text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ item.description }}</p>
+                                        <p v-if="isShared && item.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ item.last_edited_by }}</p>
+                                    </template>
+                                </div>
+                                <div v-for="task in day.tasks" :key="`itinerary-task-${task.id}`" class="rounded-md border border-border bg-accent/35 p-3 dark:border-border dark:bg-accent/25">
+                                    <form v-if="isEditing('task', task.id)" class="grid gap-3" @submit.prevent="patchEdit(updateTask.url({ trip: trip.id, task: task.id }))">
+                                        <Input class="travel-touch" v-model="editData.title" placeholder="Task" />
+                                        <Input class="travel-touch" v-model="editData.due_at" type="datetime-local" />
+                                        <select v-model="editData.priority" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                            <option value="low">Low</option>
+                                            <option value="normal">Normal</option>
+                                            <option value="high">High</option>
+                                        </select>
+                                        <label class="inline-flex items-center gap-2 text-sm">
+                                            <input :checked="Boolean(editData.completed_at)" type="checkbox" class="rounded border-input" @change="setTaskCompletion" />
+                                            Complete
+                                        </label>
+                                        <textarea v-model="editData.description" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                        <div class="flex gap-2">
+                                            <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
+                                            <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
+                                        </div>
+                                    </form>
+                                    <template v-else>
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div class="text-sm font-semibold">{{ task.title }}</div>
+                                                <div class="text-xs text-muted-foreground dark:text-muted-foreground">Task · {{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span v-if="task.completed_at" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Done</span>
+                                                <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('task', task)">Edit</Button>
+                                            </div>
+                                        </div>
+                                        <p v-if="task.description" class="mt-2 rounded-md bg-muted p-2 text-sm text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ task.description }}</p>
+                                        <p v-if="isShared && task.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ task.last_edited_by }}</p>
                                     </template>
                                 </div>
                             </div>
-                            <p v-else class="text-sm text-[#52666b] dark:text-[#b8d5d2]">No items planned for this day yet.</p>
+                            <p v-else class="text-sm text-muted-foreground dark:text-muted-foreground">No items planned for this day yet.</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -480,18 +523,18 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             </template>
                             <template v-else>
                                 <div class="flex items-start gap-3">
-                                    <Plane v-if="reservation.type === 'flight'" class="mt-1 h-5 w-5 text-[#0f777f]" />
-                                    <Hotel v-else class="mt-1 h-5 w-5 text-[#8a5b26]" />
+                                    <Plane v-if="reservation.type === 'flight'" class="mt-1 h-5 w-5 text-primary" />
+                                    <Hotel v-else class="mt-1 h-5 w-5 text-primary" />
                                     <div class="min-w-0 flex-1">
                                         <div class="font-semibold">{{ reservation.title }}</div>
-                                        <div class="text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ reservation.provider_name || reservation.type }} · {{ reservation.booking_reference || 'No confirmation yet' }}</div>
+                                        <div class="text-sm text-muted-foreground dark:text-muted-foreground">{{ reservation.provider_name || reservation.type }} · {{ reservation.booking_reference || 'No confirmation yet' }}</div>
                                         <div class="mt-2 text-sm">{{ formatDateTime(reservation.starts_at, reservation.starts_timezone) }} - {{ formatDateTime(reservation.ends_at, reservation.ends_timezone) }}</div>
-                                        <p v-if="reservation.address" class="mt-2 text-sm text-[#52666b] dark:text-[#b8d5d2]">{{ reservation.address }}</p>
-                                        <p v-if="reservation.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-sm text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ reservation.notes }}</p>
-                                        <p v-if="isShared && reservation.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ reservation.last_edited_by }}</p>
+                                        <p v-if="reservation.address" class="mt-2 text-sm text-muted-foreground dark:text-muted-foreground">{{ reservation.address }}</p>
+                                        <p v-if="reservation.notes" class="mt-2 rounded-md bg-muted p-2 text-sm text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ reservation.notes }}</p>
+                                        <p v-if="isShared && reservation.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ reservation.last_edited_by }}</p>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">{{ reservation.status }}</span>
+                                        <span class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">{{ reservation.status }}</span>
                                         <Button
                                             v-if="trip.can_edit"
                                             size="sm"
@@ -567,16 +610,16 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     <CardHeader><CardTitle class="text-base">Budget</CardTitle></CardHeader>
                     <CardContent class="space-y-3">
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <div class="rounded-md bg-[#e4f5f6] p-4 dark:bg-[#183640]">
-                                <div class="text-xs uppercase text-[#52666b] dark:text-[#b8d5d2]">Planned</div>
+                            <div class="rounded-md bg-accent p-4 dark:bg-accent">
+                                <div class="text-xs uppercase text-muted-foreground dark:text-muted-foreground">Planned</div>
                                 <div class="text-2xl font-semibold">${{ plannedTotal.toFixed(2) }}</div>
                             </div>
-                            <div class="rounded-md bg-[#e4f5f6] p-4 dark:bg-[#183640]">
-                                <div class="text-xs uppercase text-[#52666b] dark:text-[#b8d5d2]">Actual</div>
+                            <div class="rounded-md bg-accent p-4 dark:bg-accent">
+                                <div class="text-xs uppercase text-muted-foreground dark:text-muted-foreground">Actual</div>
                                 <div class="text-2xl font-semibold">${{ actualTotal.toFixed(2) }}</div>
                             </div>
                         </div>
-                        <div v-for="cost in trip.costs" :key="cost.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                        <div v-for="cost in trip.costs" :key="cost.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
                             <form v-if="isEditing('cost', cost.id)" class="grid gap-3" @submit.prevent="patchEdit(updateCost.url({ trip: trip.id, cost: cost.id }))">
                                 <Input class="travel-touch" v-model="editData.label" placeholder="Label" />
                                 <select v-model="editData.category" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
@@ -606,8 +649,8 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('cost', cost)">Edit</Button>
                                     </div>
                                 </div>
-                                <p v-if="cost.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ cost.notes }}</p>
-                                <p v-if="isShared && cost.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ cost.last_edited_by }}</p>
+                                <p v-if="cost.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ cost.notes }}</p>
+                                <p v-if="isShared && cost.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ cost.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
@@ -641,7 +684,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Packing List</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="item in trip.packing_items" :key="item.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                        <div v-for="item in trip.packing_items" :key="item.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
                             <form v-if="isEditing('packing', item.id)" class="grid gap-3" @submit.prevent="patchEdit(updatePackingItem.url({ trip: trip.id, packingItem: item.id }))">
                                 <Input class="travel-touch" v-model="editData.label" placeholder="Item" />
                                 <Input class="travel-touch" v-model="editData.traveler_name" placeholder="Traveler name" />
@@ -661,15 +704,15 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             </form>
                             <template v-else>
                                 <div class="flex items-center justify-between gap-3">
-                                    <span>{{ item.quantity }}x {{ item.label }} <span class="text-[#52666b] dark:text-[#b8d5d2]">· {{ item.category }}</span></span>
+                                    <span>{{ item.quantity }}x {{ item.label }} <span class="text-muted-foreground dark:text-muted-foreground">· {{ item.category }}</span></span>
                                     <div class="flex items-center gap-2">
                                         <span>{{ item.traveler_name || 'Shared' }}</span>
-                                        <span v-if="item.is_packed" class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">Packed</span>
+                                        <span v-if="item.is_packed" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Packed</span>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('packing', item)">Edit</Button>
                                     </div>
                                 </div>
-                                <p v-if="item.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ item.notes }}</p>
-                                <p v-if="isShared && item.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ item.last_edited_by }}</p>
+                                <p v-if="item.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ item.notes }}</p>
+                                <p v-if="isShared && item.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ item.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
@@ -695,7 +738,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Tasks · {{ completedTasks }}/{{ trip.tasks.length }} done</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="task in trip.tasks" :key="task.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                        <div v-for="task in trip.tasks" :key="task.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
                             <form v-if="isEditing('task', task.id)" class="grid gap-3" @submit.prevent="patchEdit(updateTask.url({ trip: trip.id, task: task.id }))">
                                 <Input class="travel-touch" v-model="editData.title" placeholder="Task" />
                                 <Input class="travel-touch" v-model="editData.due_at" type="datetime-local" />
@@ -718,15 +761,15 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <div class="font-medium">{{ task.title }}</div>
-                                        <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
+                                        <div class="text-muted-foreground dark:text-muted-foreground">{{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span v-if="task.completed_at" class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">Done</span>
+                                        <span v-if="task.completed_at" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Done</span>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('task', task)">Edit</Button>
                                     </div>
                                 </div>
-                                <p v-if="task.description" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ task.description }}</p>
-                                <p v-if="isShared && task.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ task.last_edited_by }}</p>
+                                <p v-if="task.description" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ task.description }}</p>
+                                <p v-if="isShared && task.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ task.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
@@ -753,7 +796,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Documents</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="document in trip.documents" :key="document.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                        <div v-for="document in trip.documents" :key="document.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
                             <form v-if="isEditing('document', document.id)" class="grid gap-3" @submit.prevent="patchEdit(updateDocument.url({ trip: trip.id, document: document.id }))">
                                 <Input class="travel-touch" v-model="editData.title" placeholder="Document title" />
                                 <Input class="travel-touch" v-model="editData.document_type" placeholder="Type" />
@@ -768,12 +811,12 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <div class="font-medium">{{ document.title }}</div>
-                                        <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ document.document_type }} · expires {{ formatDate(document.expires_on) }}</div>
+                                        <div class="text-muted-foreground dark:text-muted-foreground">{{ document.document_type }} · expires {{ formatDate(document.expires_on) }}</div>
                                     </div>
                                     <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('document', document)">Edit</Button>
                                 </div>
-                                <p v-if="document.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ document.notes }}</p>
-                                <p v-if="isShared && document.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ document.last_edited_by }}</p>
+                                <p v-if="document.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ document.notes }}</p>
+                                <p v-if="isShared && document.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ document.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
@@ -796,11 +839,11 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <div class="space-y-4">
                     <Card class="travel-panel">
                         <CardHeader>
-                            <CardTitle class="flex items-center gap-2 text-base"><Sparkles class="h-5 w-5 text-[#0f777f]" /> Automation Suggestions</CardTitle>
+                            <CardTitle class="flex items-center gap-2 text-base"><Sparkles class="h-5 w-5 text-primary" /> Automation Suggestions</CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-3">
                             <div v-if="trip.automation_suggestions.length" class="space-y-2">
-                                <div v-for="suggestion in trip.automation_suggestions" :key="suggestion.id" class="rounded-md border border-[#d8eaec] p-3 dark:border-[#25414a]">
+                                <div v-for="suggestion in trip.automation_suggestions" :key="suggestion.id" class="rounded-md border border-border p-3 dark:border-border">
                                     <div class="text-sm font-semibold">{{ suggestion.summary }}</div>
                                     <div class="mt-3 flex gap-2">
                                         <Button size="sm" class="travel-button-primary" @click="simplePost(`/trips/${trip.id}/automation/${suggestion.id}/accept`)">Accept</Button>
@@ -808,7 +851,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     </div>
                                 </div>
                             </div>
-                            <p v-else class="text-sm text-[#52666b] dark:text-[#b8d5d2]">No active suggestions. Refresh after adding or importing details.</p>
+                            <p v-else class="text-sm text-muted-foreground dark:text-muted-foreground">No active suggestions. Refresh after adding or importing details.</p>
                             <Button class="travel-touch" variant="outline" @click="simplePost(`/trips/${trip.id}/automation/refresh`)">
                                 <Sparkles class="h-4 w-4" />
                                 Refresh suggestions
@@ -819,20 +862,20 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     <Card class="travel-panel">
                         <CardHeader><CardTitle class="text-base">Import Review Queue</CardTitle></CardHeader>
                         <CardContent class="space-y-3">
-                            <div v-for="batch in trip.import_batches" :key="batch.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                            <div v-for="batch in trip.import_batches" :key="batch.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <div class="font-semibold">{{ batch.source_type.toUpperCase() }} import</div>
-                                        <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ batch.status }} · {{ (batch.parsed_payload?.items || []).length }} parsed item(s)</div>
+                                        <div class="text-muted-foreground dark:text-muted-foreground">{{ batch.status }} · {{ (batch.parsed_payload?.items || []).length }} parsed item(s)</div>
                                     </div>
-                                    <span class="rounded-full bg-[#e4f5f6] px-2 py-1 text-xs dark:bg-[#183640]">{{ batch.status }}</span>
+                                    <span class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">{{ batch.status }}</span>
                                 </div>
                                 <div v-if="batch.status === 'reviewing'" class="mt-3 flex flex-wrap gap-2">
                                     <Button size="sm" class="travel-button-primary" @click="simplePost(`/trips/${trip.id}/imports/${batch.id}/commit`)">Commit</Button>
                                     <Button size="sm" class="travel-touch" variant="outline" @click="simplePost(`/trips/${trip.id}/imports/${batch.id}/discard`)">Discard</Button>
                                 </div>
                             </div>
-                            <p v-if="!trip.import_batches.length" class="text-sm text-[#52666b] dark:text-[#b8d5d2]">No imports yet.</p>
+                            <p v-if="!trip.import_batches.length" class="text-sm text-muted-foreground dark:text-muted-foreground">No imports yet.</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -857,14 +900,14 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="flex items-center gap-2 text-base"><Users class="h-5 w-5" /> Shared Travelers</CardTitle></CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-for="collaborator in trip.collaborators" :key="collaborator.id" class="flex items-center justify-between rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                        <div v-for="collaborator in trip.collaborators" :key="collaborator.id" class="flex items-center justify-between rounded-md border border-border p-3 text-sm dark:border-border">
                             <div>
                                 <div class="font-medium">{{ collaborator.email }}</div>
-                                <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ collaborator.role }} · {{ collaborator.accepted_at ? 'accepted' : 'pending' }}</div>
+                                <div class="text-muted-foreground dark:text-muted-foreground">{{ collaborator.role }} · {{ collaborator.accepted_at ? 'accepted' : 'pending' }}</div>
                             </div>
                             <Button v-if="trip.can_share" size="sm" class="travel-touch" variant="outline" @click="destroyCollaborator(collaborator.id)">Remove</Button>
                         </div>
-                        <p v-if="!trip.collaborators.length" class="text-sm text-[#52666b] dark:text-[#b8d5d2]">No collaborators yet.</p>
+                        <p v-if="!trip.collaborators.length" class="text-sm text-muted-foreground dark:text-muted-foreground">No collaborators yet.</p>
                     </CardContent>
                 </Card>
                 <div class="space-y-4">
@@ -884,7 +927,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     <Card class="travel-panel">
                         <CardHeader><CardTitle class="flex items-center gap-2 text-base"><Bell class="h-5 w-5" /> Reminders</CardTitle></CardHeader>
                         <CardContent class="space-y-2">
-                            <div v-for="reminder in trip.reminders" :key="reminder.id" class="rounded-md border border-[#d8eaec] p-3 text-sm dark:border-[#25414a]">
+                            <div v-for="reminder in trip.reminders" :key="reminder.id" class="rounded-md border border-border p-3 text-sm dark:border-border">
                                 <form v-if="isEditing('reminder', reminder.id)" class="grid gap-3" @submit.prevent="patchEdit(updateReminder.url({ trip: trip.id, reminder: reminder.id }))">
                                     <Input class="travel-touch" v-model="editData.label" placeholder="Reminder label" />
                                     <Input class="travel-touch" v-model="editData.remind_at" type="datetime-local" />
@@ -899,15 +942,15 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     <div class="flex items-start justify-between gap-3">
                                         <div>
                                             <div class="font-medium">{{ reminder.label }}</div>
-                                            <div class="text-[#52666b] dark:text-[#b8d5d2]">{{ formatDateTime(reminder.remind_at, reminder.timezone) }}</div>
+                                            <div class="text-muted-foreground dark:text-muted-foreground">{{ formatDateTime(reminder.remind_at, reminder.timezone) }}</div>
                                         </div>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('reminder', reminder)">Edit</Button>
                                     </div>
-                                    <p v-if="reminder.notes" class="mt-2 rounded-md bg-[#f6fbfb] p-2 text-[#52666b] dark:bg-[#102a32] dark:text-[#b8d5d2]">{{ reminder.notes }}</p>
-                                    <p v-if="isShared && reminder.last_edited_by" class="mt-2 text-xs italic text-[#52666b] dark:text-[#b8d5d2]">Last edited by {{ reminder.last_edited_by }}</p>
+                                    <p v-if="reminder.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ reminder.notes }}</p>
+                                    <p v-if="isShared && reminder.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ reminder.last_edited_by }}</p>
                                 </template>
                             </div>
-                            <p v-if="!trip.reminders.length" class="text-sm text-[#52666b] dark:text-[#b8d5d2]">No reminders yet.</p>
+                            <p v-if="!trip.reminders.length" class="text-sm text-muted-foreground dark:text-muted-foreground">No reminders yet.</p>
                         </CardContent>
                     </Card>
                     <Card class="travel-panel">

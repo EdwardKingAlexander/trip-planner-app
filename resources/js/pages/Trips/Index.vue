@@ -97,7 +97,7 @@ const bucketLabel = (bucket: string) => ({
                         <div class="travel-stripe absolute inset-x-0 top-0" />
                         <div class="grid gap-6 md:grid-cols-[1fr_auto] md:items-end">
                             <div class="space-y-4">
-                                <div class="inline-flex items-center gap-2 rounded-full border border-[#c8dde0] bg-white/80 px-3 py-1 text-xs font-medium uppercase text-[#315d7a] shadow-xs dark:border-[#25414a] dark:bg-white/5 dark:text-[#a9e4df]">
+                                <div class="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs font-medium uppercase text-primary shadow-xs dark:border-border dark:bg-card/60 dark:text-primary">
                                     <Luggage class="h-3.5 w-3.5" />
                                     Vacation command center
                                 </div>
@@ -110,18 +110,18 @@ const bucketLabel = (bucket: string) => ({
                                     </p>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-3 gap-2 rounded-lg border border-[#c8dde0] bg-white/85 p-3 text-center shadow-xs dark:border-[#25414a] dark:bg-white/5">
-                                <div class="rounded-md bg-[#ecf8f5] p-2 dark:bg-[#143039]">
+                            <div class="grid grid-cols-3 gap-2 rounded-lg border border-border bg-card/85 p-3 text-center shadow-xs dark:border-border dark:bg-card/60">
+                                <div class="rounded-md bg-muted p-2 dark:bg-muted">
                                     <div class="text-2xl font-semibold">{{ stats.total }}</div>
-                                    <div class="text-xs text-[#52666b] dark:text-[#b8d5d2]">Trips</div>
+                                    <div class="text-xs text-muted-foreground dark:text-muted-foreground">Trips</div>
                                 </div>
-                                <div class="rounded-md bg-[#fff4df] p-2 dark:bg-[#332819]">
+                                <div class="rounded-md bg-muted p-2 dark:bg-muted">
                                     <div class="text-2xl font-semibold">{{ stats.upcoming }}</div>
-                                    <div class="text-xs text-[#52666b] dark:text-[#f2d6a8]">Upcoming</div>
+                                    <div class="text-xs text-muted-foreground dark:text-muted-foreground">Upcoming</div>
                                 </div>
-                                <div class="rounded-md bg-[#eef3ff] p-2 dark:bg-[#17243b]">
+                                <div class="rounded-md bg-muted p-2 dark:bg-muted">
                                     <div class="text-2xl font-semibold">{{ stats.shared }}</div>
-                                    <div class="text-xs text-[#52666b] dark:text-[#bccfff]">Shared</div>
+                                    <div class="text-xs text-muted-foreground dark:text-muted-foreground">Shared</div>
                                 </div>
                             </div>
                         </div>
@@ -158,7 +158,7 @@ const bucketLabel = (bucket: string) => ({
             <section class="travel-panel p-4">
                 <form class="flex flex-col gap-3 md:flex-row" @submit.prevent="search">
                     <div class="relative flex-1">
-                        <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#52666b]" />
+                        <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input v-model="searchForm.search" class="travel-touch pl-9" placeholder="Search destinations and trip names" />
                     </div>
                     <select v-model="searchForm.status" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
@@ -184,10 +184,10 @@ const bucketLabel = (bucket: string) => ({
                     <div class="space-y-5 p-5">
                         <div class="flex items-start justify-between gap-4">
                             <div>
-                                <div class="text-xs font-medium uppercase text-[#315d7a] dark:text-[#a9e4df]">{{ bucketLabel(trip.bucket) }}</div>
-                                <h2 class="mt-1 text-xl font-semibold leading-tight group-hover:text-[#0f777f]">{{ trip.name }}</h2>
+                                <div class="text-xs font-medium uppercase text-primary dark:text-primary">{{ bucketLabel(trip.bucket) }}</div>
+                                <h2 class="mt-1 text-xl font-semibold leading-tight group-hover:text-primary">{{ trip.name }}</h2>
                             </div>
-                            <Share2 v-if="!trip.is_owner || trip.counts.collaborators" class="h-5 w-5 text-[#0f777f]" />
+                            <Share2 v-if="!trip.is_owner || trip.counts.collaborators" class="h-5 w-5 text-primary" />
                         </div>
                         <div class="travel-muted space-y-2 text-sm">
                             <div class="flex items-center gap-2">
@@ -208,8 +208,8 @@ const bucketLabel = (bucket: string) => ({
                 </Link>
             </section>
 
-            <section v-else class="rounded-lg border border-dashed border-[#99c8ce] bg-white p-10 text-center shadow-sm dark:border-[#315d7a] dark:bg-[#102027]">
-                <Luggage class="mx-auto h-10 w-10 text-[#0f777f]" />
+            <section v-else class="rounded-lg border border-dashed border-border bg-card p-10 text-center shadow-sm dark:border-border dark:bg-card">
+                <Luggage class="mx-auto h-10 w-10 text-primary" />
                 <h2 class="mt-4 text-xl font-semibold">No trips yet</h2>
                 <p class="travel-muted mt-2 text-sm">Create your first trip to start organizing dates, stays, flights, and shared details.</p>
             </section>

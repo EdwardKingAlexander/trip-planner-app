@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\Theme;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Middleware;
@@ -46,9 +47,27 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'theme' => $this->theme($request),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'notifications' => fn () => $this->notificationsPayload($request),
         ];
+    }
+
+    private function theme(Request $request): string
+    {
+        $userTheme = $request->user()?->theme;
+
+        if (Theme::tryFrom((string) $userTheme) !== null) {
+            return $userTheme;
+        }
+
+        $cookieTheme = $request->cookie('theme');
+
+        if (Theme::tryFrom((string) $cookieTheme) !== null) {
+            return $cookieTheme;
+        }
+
+        return Theme::default()->value;
     }
 
     /**

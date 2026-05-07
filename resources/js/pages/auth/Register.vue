@@ -88,7 +88,7 @@ defineOptions({
                 tabindex="5"
                 :disabled="processing"
                 data-test="register-user-button"
-                class="mt-2 w-full bg-[#1b6b6f] hover:bg-[#155356]"
+                class="mt-2 w-full bg-primary hover:bg-primary/90"
             >
                 <Spinner v-if="processing" />
                 Create account

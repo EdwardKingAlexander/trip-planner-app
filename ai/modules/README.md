@@ -28,6 +28,14 @@ Use [editable-trip-entries](editable-trip-entries/00-master-plan.md) for post-cr
 
 Use [scroll-issue](scroll-issue/00-master-plan.md) for authenticated layout scroll ownership, sidebar/offcanvas behavior, and page overflow hardening. Its durable state file is `ai/state/scroll-issue.json`.
 
+## Themes Plan
+
+Use [themes-plan](themes-plan/00-master-plan.md) for the five premade visual themes (Coastal, Sunset, Forest, Midnight, Sandstone), the theme registry/composable, persistence (cookie + DB), and the appearance settings picker. Its durable state file is `ai/state/themes-plan.json`.
+
+## Navigation Uplift
+
+Use [navigation-uplift](navigation-uplift/00-master-plan.md) to fix the broken sidebar links (six items currently route to `/trips`), wire Wayfinder-typed routes, add Calendar and Reminders global pages plus a Notifications nav entry, and bring the mobile sheet to parity with the sidebar. Its durable state file is `ai/state/navigation-uplift.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.

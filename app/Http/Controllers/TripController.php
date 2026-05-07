@@ -158,6 +158,9 @@ class TripController extends Controller
         $trip->loadCount(['days', 'itineraryItems', 'reservations', 'tasks', 'documents', 'collaborators']);
 
         $latestEvent = $trip->activityEvents()->with('actor')->latest('id')->first();
+        $tasksByDate = $trip->tasks
+            ->filter(fn ($task) => $task->due_at !== null)
+            ->groupBy(fn ($task) => $task->due_at->toDateString());
 
         return [
             ...$this->tripSummary($trip, $userId),
@@ -191,6 +194,13 @@ class TripController extends Controller
                     'is_all_day' => $item->is_all_day,
                     'last_edited_by' => $this->editorName($item),
                 ]),
+                'tasks' => $tasksByDate
+                    ->get($day->date->toDateString(), collect())
+                    ->map(fn ($task) => [
+                        ...$task->toArray(),
+                        'last_edited_by' => $this->editorName($task),
+                    ])
+                    ->values(),
             ]),
             'reservations' => $trip->reservations->map(fn ($reservation) => [
                 'id' => $reservation->id,

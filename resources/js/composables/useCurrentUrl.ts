@@ -14,6 +14,7 @@ export type UseCurrentUrlReturn = {
     isCurrentOrParentUrl: (
         urlToCheck: NonNullable<InertiaLinkProps['href']>,
         currentUrl?: string,
+        excludePrefixes?: string[],
     ) => boolean;
     whenCurrentUrl: <T, F = null>(
         urlToCheck: NonNullable<InertiaLinkProps['href']>,
@@ -21,6 +22,32 @@ export type UseCurrentUrlReturn = {
         ifFalse?: F,
     ) => T | F;
 };
+
+export function normalizePath(url: NonNullable<InertiaLinkProps['href']>): string {
+    const urlString = toUrl(url);
+
+    if (!urlString.startsWith('http')) {
+        return new URL(urlString, 'http://localhost').pathname;
+    }
+
+    return new URL(urlString).pathname;
+}
+
+export function isUrlActive(
+    urlToCheck: NonNullable<InertiaLinkProps['href']>,
+    currentUrl: string,
+    startsWith: boolean = false,
+    excludePrefixes: string[] = [],
+): boolean {
+    const urlToCompare = normalizePath(currentUrl);
+    const path = normalizePath(urlToCheck);
+
+    if (excludePrefixes.some((prefix) => urlToCompare.startsWith(prefix))) {
+        return false;
+    }
+
+    return startsWith ? urlToCompare.startsWith(path) : path === urlToCompare;
+}
 
 const page = usePage();
 const currentUrlReactive = computed(
@@ -39,20 +66,8 @@ export function useCurrentUrl(): UseCurrentUrlReturn {
         currentUrl?: string,
         startsWith: boolean = false,
     ) {
-        const urlToCompare = currentUrl ?? currentUrlReactive.value;
-        const urlString = toUrl(urlToCheck);
-
-        const comparePath = (path: string): boolean =>
-            startsWith ? urlToCompare.startsWith(path) : path === urlToCompare;
-
-        if (!urlString.startsWith('http')) {
-            return comparePath(urlString);
-        }
-
         try {
-            const absoluteUrl = new URL(urlString);
-
-            return comparePath(absoluteUrl.pathname);
+            return isUrlActive(urlToCheck, currentUrl ?? currentUrlReactive.value, startsWith);
         } catch {
             return false;
         }
@@ -61,8 +76,13 @@ export function useCurrentUrl(): UseCurrentUrlReturn {
     function isCurrentOrParentUrl(
         urlToCheck: NonNullable<InertiaLinkProps['href']>,
         currentUrl?: string,
+        excludePrefixes: string[] = [],
     ) {
-        return isCurrentUrl(urlToCheck, currentUrl, true);
+        try {
+            return isUrlActive(urlToCheck, currentUrl ?? currentUrlReactive.value, true, excludePrefixes);
+        } catch {
+            return false;
+        }
     }
 
     function whenCurrentUrl(

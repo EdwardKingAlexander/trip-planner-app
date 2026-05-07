@@ -84,13 +84,13 @@ const markAllRead = (): void => {
                 type="button"
                 variant="ghost"
                 size="icon"
-                class="travel-touch relative size-11 rounded-lg border border-[#c8dde0] bg-white text-[#174f57] shadow-xs hover:bg-[#eaf7f8] dark:border-[#244650] dark:bg-[#132830] dark:text-[#d6f5f1] dark:hover:bg-[#183640]"
+                class="travel-touch relative size-11 rounded-lg border border-border bg-card text-primary shadow-xs hover:bg-accent dark:border-border dark:bg-card dark:text-primary dark:hover:bg-accent"
                 aria-label="Notifications"
             >
                 <Bell class="size-5" />
                 <span
                     v-if="hasUnread"
-                    class="absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[#0f777f] px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                    class="absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground shadow-sm"
                 >{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
             </Button>
         </DropdownMenuTrigger>
@@ -100,29 +100,29 @@ const markAllRead = (): void => {
                 <button
                     v-if="hasUnread"
                     type="button"
-                    class="text-xs font-normal text-[#0f777f] hover:underline"
+                    class="text-xs font-normal text-primary hover:underline"
                     @click="markAllRead"
                 >
                     Mark all read
                 </button>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <div v-if="recent.length === 0" class="px-3 py-6 text-center text-sm text-[#52666b] dark:text-[#b8d5d2]">
+            <div v-if="recent.length === 0" class="px-3 py-6 text-center text-sm text-muted-foreground dark:text-muted-foreground">
                 You're all caught up.
             </div>
             <DropdownMenuItem
                 v-for="notification in recent"
                 :key="notification.id"
-                :class="['cursor-pointer items-start gap-2 py-2', notification.read_at ? '' : 'bg-[#eaf7f8]/60 dark:bg-[#183640]/40']"
+                :class="['cursor-pointer items-start gap-2 py-2', notification.read_at ? '' : 'bg-accent/60 dark:bg-accent/40']"
                 @select="openNotification(notification)"
             >
                 <div class="min-w-0 flex-1">
                     <div class="text-sm leading-snug">{{ summaryText(notification) }}</div>
-                    <div class="mt-0.5 text-xs text-[#52666b] dark:text-[#b8d5d2]">
+                    <div class="mt-0.5 text-xs text-muted-foreground dark:text-muted-foreground">
                         <span v-if="notification.trip_name">{{ notification.trip_name }} · </span>{{ formatRelative(notification.created_at) }}
                     </div>
                 </div>
-                <span v-if="!notification.read_at" class="mt-1 size-2 shrink-0 rounded-full bg-[#0f777f]" aria-hidden="true" />
+                <span v-if="!notification.read_at" class="mt-1 size-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
             </DropdownMenuItem>
         </DropdownMenuContent>
     </DropdownMenu>

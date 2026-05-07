@@ -1,6 +1,6 @@
 # Vacation Plan App Build State
 
-Last updated: 2026-05-04
+Last updated: 2026-05-07
 
 ## Current Phase
 
@@ -32,6 +32,8 @@ Last updated: 2026-05-04
 | 2026-05-04 | Keep advanced import/live integration work planned after the hosted MVP | Email parsing, ICS import, and live flight APIs need provider decisions |
 | 2026-05-04 | Implement review-first imports for confirmations and ICS text | Prevents imported data from silently changing trip plans |
 | 2026-05-04 | Implement print, JSON export, ICS export, global search, and travel preferences | Completes production-readiness features without adding external API dependencies |
+| 2026-05-07 | Add five account-level visual themes with cookie, localStorage, and DB persistence | Keeps theme selection immediate on the client while preserving SSR first paint and cross-device preferences |
+| 2026-05-07 | Keep Reservations, Packing, Documents, and Sharing as in-trip tabs; use Trips, Search, Calendar, Reminders, and Notifications as global nav | Prevents broken sidebar destinations and gives every global item a distinct route |
 
 ## Open Questions
 

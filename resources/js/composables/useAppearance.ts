@@ -70,7 +70,7 @@ const handleSystemThemeChange = () => {
     updateTheme(currentAppearance || 'system');
 };
 
-export function initializeTheme(): void {
+export function initializeAppearance(): void {
     if (typeof window === 'undefined') {
         return;
     }
@@ -82,6 +82,8 @@ export function initializeTheme(): void {
     // Set up system theme change listener...
     mediaQuery()?.addEventListener('change', handleSystemThemeChange);
 }
+
+export const initializeTheme = initializeAppearance;
 
 const appearance = ref<Appearance>('system');
 

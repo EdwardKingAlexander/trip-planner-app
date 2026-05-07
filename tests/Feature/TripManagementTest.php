@@ -2,6 +2,7 @@
 
 use App\Models\Trip;
 use App\Models\User;
+use Inertia\Testing\AssertableInertia as Assert;
 
 test('users can create a trip with generated trip days', function () {
     $user = User::factory()->create();
@@ -159,6 +160,36 @@ test('trip owners can add itinerary reservations packing items and tasks', funct
         ->and($trip->reservations()->where('title', 'Waterfront hotel')->exists())->toBeTrue()
         ->and($trip->packingItems()->where('label', 'Rain jacket')->exists())->toBeTrue()
         ->and($trip->tasks()->where('title', 'Download boarding passes')->exists())->toBeTrue();
+});
+
+test('dated tasks are exposed on the matching itinerary day', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::create([
+        'user_id' => $owner->id,
+        'name' => 'Seattle Weekend',
+        'destination' => 'Seattle, Washington',
+        'starts_on' => '2026-11-06',
+        'ends_on' => '2026-11-08',
+        'status' => 'planned',
+    ]);
+    $trip->syncDays();
+
+    $trip->tasks()->create([
+        'title' => 'Download boarding passes',
+        'description' => 'Save offline copies before leaving.',
+        'due_at' => '2026-11-06 18:00:00',
+        'priority' => 'high',
+    ]);
+
+    $this->actingAs($owner)
+        ->get(route('trips.show', $trip))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Trips/Show')
+            ->where('trip.days.0.tasks.0.title', 'Download boarding passes')
+            ->where('trip.days.0.tasks.0.priority', 'high')
+            ->where('trip.days.1.tasks', []),
+        );
 });
 
 test('editors can update itinerary reservations budget and planning notes', function () {

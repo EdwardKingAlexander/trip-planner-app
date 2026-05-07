@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ReminderInboxController;
 use App\Http\Controllers\TripAutomationController;
 use App\Http\Controllers\TripCollaboratorController;
 use App\Http\Controllers\TripController;
@@ -19,6 +21,9 @@ Route::inertia('/', 'Welcome', [
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::redirect('dashboard', 'trips')->name('dashboard');
+    Route::get('calendar', CalendarController::class)->name('calendar.index');
+    Route::get('reminders', ReminderInboxController::class)->name('reminders.index');
+    Route::post('reminders/{reminder}/done', [ReminderInboxController::class, 'done'])->name('reminders.done');
     Route::get('trips/search', TripSearchController::class)->name('trips.search');
     Route::resource('trips', TripController::class);
     Route::get('trips/{trip}/print', [TripExportController::class, 'print'])->name('trips.print');

@@ -6,10 +6,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class NotificationController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): Response|JsonResponse
     {
         $user = $request->user();
 
@@ -19,10 +21,16 @@ class NotificationController extends Controller
             ->get()
             ->map(fn (DatabaseNotification $notification) => $this->serialize($notification));
 
-        return response()->json([
+        $payload = [
             'items' => $items,
             'unread_count' => $user->unreadNotifications()->count(),
-        ]);
+        ];
+
+        if ($request->expectsJson()) {
+            return response()->json($payload);
+        }
+
+        return Inertia::render('notifications/Index', $payload);
     }
 
     public function read(Request $request, string $id): RedirectResponse

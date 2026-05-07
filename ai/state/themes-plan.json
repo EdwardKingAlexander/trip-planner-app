@@ -1,0 +1,127 @@
+{
+    "module": "themes-plan",
+    "status": "verified",
+    "last_updated": "2026-05-07",
+    "current_phase": {
+        "id": "05-verification-and-release",
+        "status": "verified",
+        "next_action": "Complete. Future theme additions should update the shared Theme type, JS registry, PHP enum, and CSS token blocks."
+    },
+    "phase_status": [
+        {
+            "id": "01-theme-foundation-and-registry",
+            "file": "ai/modules/themes-plan/01-theme-foundation-and-registry.md",
+            "status": "verified"
+        },
+        {
+            "id": "02-theme-persistence-and-ssr",
+            "file": "ai/modules/themes-plan/02-theme-persistence-and-ssr.md",
+            "status": "verified"
+        },
+        {
+            "id": "03-five-premade-themes",
+            "file": "ai/modules/themes-plan/03-five-premade-themes.md",
+            "status": "verified"
+        },
+        {
+            "id": "04-theme-switcher-ui",
+            "file": "ai/modules/themes-plan/04-theme-switcher-ui.md",
+            "status": "verified"
+        },
+        {
+            "id": "05-verification-and-release",
+            "file": "ai/modules/themes-plan/05-verification-and-release.md",
+            "status": "verified"
+        }
+    ],
+    "themes": [
+        {
+            "slug": "coastal",
+            "name": "Coastal",
+            "identity": "Existing default - teal, sand, sunset coral",
+            "default": true
+        },
+        {
+            "slug": "sunset",
+            "name": "Sunset",
+            "identity": "Warm oranges, corals, plum, peach"
+        },
+        {
+            "slug": "forest",
+            "name": "Forest",
+            "identity": "Deep evergreen, moss, bark, cream"
+        },
+        {
+            "slug": "midnight",
+            "name": "Midnight",
+            "identity": "Indigo, slate, electric violet accent"
+        },
+        {
+            "slug": "sandstone",
+            "name": "Sandstone",
+            "identity": "Desert terracotta, sage, warm neutral"
+        }
+    ],
+    "state_owners": {
+        "runtime": "resources/js/composables/useTheme.ts (module-scoped ref)",
+        "render": "document.documentElement[data-theme] attribute, composes with .dark class",
+        "client_persistence": "localStorage key 'theme'",
+        "ssr_first_paint": "cookie 'theme' read in resources/views/app.blade.php and HandleInertiaRequests share()",
+        "cross_device": "users.theme column"
+    },
+    "hydration_precedence": [
+        "Inertia shared 'theme' prop (server-rendered cookie or DB value)",
+        "localStorage 'theme'",
+        "DEFAULT_THEME ('coastal')"
+    ],
+    "verification": [
+        {
+            "command": "php artisan migrate --no-interaction",
+            "result": "passed - users.theme migration ran locally"
+        },
+        {
+            "command": "php artisan test --compact --filter=ThemeController",
+            "result": "passed - 3 tests, 11 assertions"
+        },
+        {
+            "command": "php artisan test --compact tests\\Feature\\Settings\\AppearancePageTest.php",
+            "result": "passed - 2 tests, 19 assertions"
+        },
+        {
+            "command": "php artisan test --compact",
+            "result": "passed - 68 tests, 272 assertions"
+        },
+        {
+            "command": "npm run lint:check",
+            "result": "passed"
+        },
+        {
+            "command": "npm run build",
+            "result": "passed - Vite production build and Wayfinder generation completed"
+        },
+        {
+            "command": "npm run types:check",
+            "result": "passed after build regenerated Wayfinder files"
+        },
+        {
+            "command": "vendor\\bin\\pint --dirty --format agent",
+            "result": "passed"
+        },
+        {
+            "command": "composer run lint:check",
+            "result": "passed - Pint test mode"
+        },
+        {
+            "command": "inline Node contrast check for foreground/background, primary-foreground/primary, muted-foreground/muted across 5 themes x light/dark",
+            "result": "passed - all checked pairs >= WCAG AA 4.5:1"
+        }
+    ],
+    "handoff": {
+        "summary": "Themes plan is implemented and verified. The token contract lives in resources/css/app.css with complete light and dark blocks for coastal, sunset, forest, midnight, and sandstone. Add a sixth theme by editing resources/js/types/ui.ts, resources/js/lib/themes.ts, app/Enums/Theme.php, and resources/css/app.css. Runtime state lives in resources/js/composables/useTheme.ts; persistence touches users.theme, settings/theme via ThemeController, the theme cookie, HandleInertiaRequests shared props, HandleAppearance view shares, and resources/views/app.blade.php data-theme first paint. The cookie is the SSR source of truth; the DB column is authoritative for signed-in users on new devices.",
+        "next_agent_steps": [
+            "Use resources/js/components/ThemePicker.vue as the only current UI entrypoint for selecting themes.",
+            "Regenerate Wayfinder after adding future theme persistence routes.",
+            "Keep token contrast checks at WCAG AA or better when changing palettes."
+        ]
+    }
+}
