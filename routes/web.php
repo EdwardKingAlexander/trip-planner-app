@@ -44,6 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('trips/{trip}/packing-items/{packingItem}', [TripPlanningController::class, 'destroyPacking'])->name('trips.packing-items.destroy');
     Route::post('trips/{trip}/tasks', [TripPlanningController::class, 'task'])->name('trips.tasks.store');
     Route::patch('trips/{trip}/tasks/{task}', [TripPlanningController::class, 'updateTask'])->name('trips.tasks.update');
+    Route::patch('trips/{trip}/tasks/{task}/completion', [TripPlanningController::class, 'toggleTaskCompletion'])->name('trips.tasks.toggle-completion');
     Route::delete('trips/{trip}/tasks/{task}', [TripPlanningController::class, 'destroyTask'])->name('trips.tasks.destroy');
     Route::post('trips/{trip}/documents', [TripPlanningController::class, 'document'])->name('trips.documents.store');
     Route::patch('trips/{trip}/documents/{document}', [TripPlanningController::class, 'updateDocument'])->name('trips.documents.update');

@@ -34,7 +34,7 @@ import { destroy as destroyItineraryItem, store as storeItineraryItem, update as
 import { destroy as destroyPackingItem, store as storePackingItem, togglePacked, update as updatePackingItem } from '@/routes/trips/packing-items';
 import { destroy as destroyReminder, store as storeReminder, update as updateReminder } from '@/routes/trips/reminders';
 import { destroy as destroyReservation, store as storeReservation, update as updateReservation } from '@/routes/trips/reservations';
-import { destroy as destroyTask, store as storeTask, update as updateTask } from '@/routes/trips/tasks';
+import { destroy as destroyTask, store as storeTask, toggleCompletion, update as updateTask } from '@/routes/trips/tasks';
 
 type ParticipantSummary = {
     id: number;
@@ -55,6 +55,16 @@ type PackingItem = Record<string, any> & {
     assigned_to_user_id: number | null;
     added_by: ParticipantSummary | null;
     assigned_to: ParticipantSummary | null;
+};
+
+type TaskItem = Record<string, any> & {
+    id: number;
+    title: string;
+    description?: string | null;
+    due_at: string | null;
+    completed_at: string | null;
+    priority: string;
+    last_edited_by?: string | null;
 };
 
 type AssigneeProgress = {
@@ -103,12 +113,12 @@ type Trip = {
             is_all_day: boolean;
             last_edited_by?: string | null;
         }>;
-        tasks: Array<Record<string, any>>;
+        tasks: TaskItem[];
     }>;
     reservations: Array<Record<string, any>>;
     costs: Array<Record<string, any>>;
     packing_items: PackingItem[];
-    tasks: Array<Record<string, any>>;
+    tasks: TaskItem[];
     documents: Array<Record<string, any>>;
     reminders: Array<Record<string, any>>;
     collaborators: Array<Record<string, any>>;
@@ -137,7 +147,9 @@ type EditKind = 'itinerary' | 'reservation' | 'cost' | 'packing' | 'task' | 'doc
 const editing = ref<{ type: EditKind; id: number } | null>(null);
 const editData = ref<Record<string, any>>({});
 const togglingPackingIds = ref(new Set<number>());
+const togglingTaskIds = ref(new Set<number>());
 const packingRowErrors = ref<Record<number, string>>({});
+const taskRowErrors = ref<Record<number, string>>({});
 const hidePacked = ref(false);
 const mineOnly = ref(false);
 const missingSubjectAlert = ref(false);
@@ -493,6 +505,62 @@ const setPackingRowError = (id: number, message: string) => {
     }, 4000);
 };
 
+const setTaskRowError = (id: number, message: string) => {
+    taskRowErrors.value = { ...taskRowErrors.value, [id]: message };
+
+    window.setTimeout(() => {
+        const nextErrors = { ...taskRowErrors.value };
+        delete nextErrors[id];
+        taskRowErrors.value = nextErrors;
+    }, 4000);
+};
+
+const setTaskCompletionEverywhere = (taskId: number, completedAt: string | null) => {
+    for (const task of props.trip.tasks) {
+        if (task.id === taskId) {
+            task.completed_at = completedAt;
+        }
+    }
+
+    for (const day of props.trip.days) {
+        for (const task of day.tasks) {
+            if (task.id === taskId) {
+                task.completed_at = completedAt;
+            }
+        }
+    }
+};
+
+const toggleTaskCompletion = (task: TaskItem) => {
+    if (!props.trip.can_edit || togglingTaskIds.value.has(task.id)) {
+        return;
+    }
+
+    const previous = task.completed_at ?? null;
+    const nextCompletedAt = previous ? null : new Date().toISOString();
+
+    setTaskCompletionEverywhere(task.id, nextCompletedAt);
+    togglingTaskIds.value = new Set(togglingTaskIds.value).add(task.id);
+
+    router.patch(
+        toggleCompletion.url({ trip: props.trip.id, task: task.id }),
+        { completed: Boolean(nextCompletedAt) },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onError: () => {
+                setTaskCompletionEverywhere(task.id, previous);
+                setTaskRowError(task.id, 'Could not save. Try again.');
+            },
+            onFinish: () => {
+                const nextIds = new Set(togglingTaskIds.value);
+                nextIds.delete(task.id);
+                togglingTaskIds.value = nextIds;
+            },
+        },
+    );
+};
+
 const togglePackedItem = (item: Record<string, any> & { id: number; is_packed: boolean; label: string }) => {
     if (!props.trip.can_edit || togglingPackingIds.value.has(item.id)) {
         return;
@@ -694,9 +762,18 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                     </form>
                                     <template v-else>
                                         <div class="flex items-start justify-between gap-3">
-                                            <div>
-                                                <div class="text-sm font-semibold">{{ task.title }}</div>
-                                                <div class="text-xs text-muted-foreground dark:text-muted-foreground">Task · {{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
+                                            <div class="flex min-w-0 items-start gap-3">
+                                                <Checkbox
+                                                    :model-value="Boolean(task.completed_at)"
+                                                    :disabled="!trip.can_edit || togglingTaskIds.has(task.id)"
+                                                    class="mt-0.5 size-5"
+                                                    :aria-label="`${task.completed_at ? 'Reopen' : 'Complete'} ${task.title}`"
+                                                    @update:model-value="toggleTaskCompletion(task)"
+                                                />
+                                                <div class="min-w-0">
+                                                    <div class="text-sm font-semibold" :class="{ 'text-muted-foreground line-through': task.completed_at }">{{ task.title }}</div>
+                                                    <div class="text-xs text-muted-foreground dark:text-muted-foreground">Task · {{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
+                                                </div>
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <span v-if="task.completed_at" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Done</span>
@@ -707,6 +784,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                                 </Button>
                                             </div>
                                         </div>
+                                        <p v-if="taskRowErrors[task.id]" class="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">{{ taskRowErrors[task.id] }}</p>
                                         <p v-if="task.description" class="mt-2 rounded-md bg-muted p-2 text-sm text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ task.description }}</p>
                                         <p v-if="isShared && task.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ task.last_edited_by }}</p>
                                     </template>
@@ -1154,9 +1232,18 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             </form>
                             <template v-else>
                                 <div class="flex items-start justify-between gap-3">
-                                    <div>
-                                        <div class="font-medium">{{ task.title }}</div>
-                                        <div class="text-muted-foreground dark:text-muted-foreground">{{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
+                                    <div class="flex min-w-0 items-start gap-3">
+                                        <Checkbox
+                                            :model-value="Boolean(task.completed_at)"
+                                            :disabled="!trip.can_edit || togglingTaskIds.has(task.id)"
+                                            class="mt-0.5 size-5"
+                                            :aria-label="`${task.completed_at ? 'Reopen' : 'Complete'} ${task.title}`"
+                                            @update:model-value="toggleTaskCompletion(task)"
+                                        />
+                                        <div class="min-w-0">
+                                            <div class="font-medium" :class="{ 'text-muted-foreground line-through': task.completed_at }">{{ task.title }}</div>
+                                            <div class="text-muted-foreground dark:text-muted-foreground">{{ task.priority }} · due {{ formatDateTime(task.due_at) }}</div>
+                                        </div>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <span v-if="task.completed_at" class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">Done</span>
@@ -1167,6 +1254,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         </Button>
                                     </div>
                                 </div>
+                                <p v-if="taskRowErrors[task.id]" class="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">{{ taskRowErrors[task.id] }}</p>
                                 <p v-if="task.description" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ task.description }}</p>
                                 <p v-if="isShared && task.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ task.last_edited_by }}</p>
                             </template>

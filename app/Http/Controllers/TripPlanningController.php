@@ -203,6 +203,32 @@ class TripPlanningController extends Controller
         return back()->with('success', 'Task updated.');
     }
 
+    public function toggleTaskCompletion(Request $request, Trip $trip, TripTask $task, TripCollaborationEventService $events): RedirectResponse
+    {
+        $this->authorize('update', $trip);
+        abort_unless($task->trip_id === $trip->id, 404);
+
+        $validated = $request->validate([
+            'completed' => ['required', 'boolean'],
+        ]);
+
+        $isCompleted = (bool) $validated['completed'];
+
+        $task->update([
+            'completed_at' => $isCompleted ? now() : null,
+        ]);
+
+        $events->record(
+            trip: $trip,
+            eventType: $isCompleted ? 'task.completed' : 'task.reopened',
+            changedArea: 'tasks',
+            summary: ($isCompleted ? 'completed task: ' : 'reopened task: ').$task->title,
+            subject: $task,
+        );
+
+        return back()->with('success', $isCompleted ? 'Task completed.' : 'Task reopened.');
+    }
+
     public function destroyTask(Trip $trip, TripTask $task, TripCollaborationEventService $events): RedirectResponse
     {
         $this->authorize('update', $trip);
