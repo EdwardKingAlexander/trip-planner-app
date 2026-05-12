@@ -5,18 +5,24 @@ import {
     CalendarClock,
     CheckCircle2,
     CheckSquare,
+    ChevronDown,
     Download,
     DollarSign,
+    FileQuestion,
     FileText,
     Hotel,
+    Image,
     ListChecks,
+    Paperclip,
     Plane,
     Printer,
     Share2,
     Sparkles,
+    StickyNote,
     Trash2,
     Upload,
     Users,
+    X,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { nextTick, watch } from 'vue';
@@ -29,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { useTripRealtime } from '@/composables/useTripRealtime';
 import { destroy as destroyCost, store as storeCost, update as updateCost } from '@/routes/trips/costs';
-import { destroy as destroyDocument, store as storeDocument, update as updateDocument } from '@/routes/trips/documents';
+import { destroy as destroyDocument, store as storeDocument, update as updateDocument, upload as uploadDocument } from '@/routes/trips/documents';
 import { destroy as destroyItineraryItem, store as storeItineraryItem, update as updateItineraryItem } from '@/routes/trips/itinerary-items';
 import { destroy as destroyPackingItem, store as storePackingItem, togglePacked, update as updatePackingItem } from '@/routes/trips/packing-items';
 import { destroy as destroyReminder, store as storeReminder, update as updateReminder } from '@/routes/trips/reminders';
@@ -65,6 +71,30 @@ type TaskItem = Record<string, any> & {
     completed_at: string | null;
     priority: string;
     last_edited_by?: string | null;
+};
+
+type TripDocument = Record<string, any> & {
+    id: number;
+    title: string;
+    document_type: string;
+    expires_on: string | null;
+    notes: string | null;
+    reservation_id: number | null;
+    file_path: string | null;
+    original_filename: string | null;
+    mime_type: string | null;
+    file_size_bytes: number | null;
+    file_url: string | null;
+    preview_kind: 'note' | 'pdf' | 'image' | 'image-opaque' | 'file';
+    size_label: string | null;
+    last_edited_by?: string | null;
+};
+
+type ReservationItem = Record<string, any> & {
+    id: number;
+    title: string;
+    type: string;
+    document_count: number;
 };
 
 type AssigneeProgress = {
@@ -115,11 +145,11 @@ type Trip = {
         }>;
         tasks: TaskItem[];
     }>;
-    reservations: Array<Record<string, any>>;
+    reservations: ReservationItem[];
     costs: Array<Record<string, any>>;
     packing_items: PackingItem[];
     tasks: TaskItem[];
-    documents: Array<Record<string, any>>;
+    documents: TripDocument[];
     reminders: Array<Record<string, any>>;
     collaborators: Array<Record<string, any>>;
     participants: Array<ParticipantSummary & { role: 'owner' | 'editor' | 'viewer' }>;
@@ -153,6 +183,11 @@ const taskRowErrors = ref<Record<number, string>>({});
 const hidePacked = ref(false);
 const mineOnly = ref(false);
 const missingSubjectAlert = ref(false);
+const dropActive = ref(false);
+const fileInputEl = ref<HTMLInputElement | null>(null);
+const stagedFileErrors = ref<string[]>([]);
+const lightboxDocument = ref<TripDocument | null>(null);
+const expandedReservations = ref(new Set<number>());
 const currentUserId = computed(() => page.props.auth.user?.id ?? null);
 
 const itineraryForm = useForm({
@@ -221,6 +256,25 @@ const documentForm = useForm({
     document_type: 'confirmation',
     expires_on: '',
     notes: '',
+    reservation_id: null as number | null,
+});
+
+const uploadForm = useForm({
+    files: [] as File[],
+    title_prefix: '',
+    document_type: 'attachment',
+    expires_on: '',
+    notes: '',
+    reservation_id: null as number | null,
+});
+
+const attachmentForm = useForm({
+    files: [] as File[],
+    title_prefix: '',
+    document_type: 'attachment',
+    expires_on: '',
+    notes: '',
+    reservation_id: null as number | null,
 });
 
 const reminderForm = useForm({
@@ -410,6 +464,12 @@ onMounted(() => {
     if (url.searchParams.get('from') === 'notification' && window.location.hash) {
         void focusDeepLinkedElement(window.location.hash.slice(1));
     }
+
+    for (const reservation of props.trip.reservations) {
+        if (reservation.document_count > 0) {
+            expandedReservations.value.add(reservation.id);
+        }
+    }
 });
 
 watch(hidePacked, (value) => {
@@ -424,6 +484,23 @@ const plannedTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum +
 const actualTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.actual_amount ?? 0), 0));
 const completedTasks = computed(() => props.trip.tasks.filter((task) => task.completed_at).length);
 const isShared = computed(() => (props.trip.collaborators?.length ?? 0) > 0);
+const documentsByReservation = computed(() => {
+    const map = new Map<number, TripDocument[]>();
+
+    for (const document of props.trip.documents) {
+        if (document.reservation_id === null) {
+            continue;
+        }
+
+        if (!map.has(document.reservation_id)) {
+            map.set(document.reservation_id, []);
+        }
+
+        map.get(document.reservation_id)?.push(document);
+    }
+
+    return map;
+});
 
 const focusDeepLinkedElement = async (anchor: string) => {
     await nextTick();
@@ -490,6 +567,147 @@ const destroyEntry = (url: string, label: string) => {
         onSuccess: cancelEdit,
     });
 };
+
+const allowedDocumentExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+const maxDocumentFileSize = 15 * 1024 * 1024;
+
+const formatBytes = (bytes: number): string => {
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const acceptedFiles = (files: FileList | File[]): File[] => {
+    const nextErrors: string[] = [];
+    const accepted = Array.from(files).filter((file) => {
+        const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+
+        if (!allowedDocumentExtensions.includes(extension)) {
+            nextErrors.push(`${file.name} is not a supported file type.`);
+
+            return false;
+        }
+
+        if (file.size > maxDocumentFileSize) {
+            nextErrors.push(`${file.name} is larger than 15 MB.`);
+
+            return false;
+        }
+
+        return true;
+    });
+
+    stagedFileErrors.value = nextErrors;
+
+    return accepted.slice(0, 10);
+};
+
+const stageUploadFiles = (files: FileList | File[]) => {
+    const accepted = acceptedFiles(files);
+    const remainingSlots = Math.max(0, 10 - uploadForm.files.length);
+
+    if (accepted.length > remainingSlots) {
+        stagedFileErrors.value.push('Only 10 files can be uploaded at once.');
+    }
+
+    uploadForm.files = [...uploadForm.files, ...accepted.slice(0, remainingSlots)];
+};
+
+const handleFileInput = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    stageUploadFiles(input.files ?? []);
+    input.value = '';
+};
+
+const handleDrop = (event: DragEvent) => {
+    dropActive.value = false;
+    stageUploadFiles(event.dataTransfer?.files ?? []);
+};
+
+const removeStagedFile = (index: number) => {
+    uploadForm.files = uploadForm.files.filter((_, currentIndex) => currentIndex !== index);
+};
+
+const submitUpload = () => {
+    if (uploadForm.files.length === 0) {
+        return;
+    }
+
+    uploadForm.post(uploadDocument.url(props.trip.id), {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            uploadForm.reset('files', 'title_prefix', 'document_type', 'expires_on', 'notes', 'reservation_id');
+            stagedFileErrors.value = [];
+        },
+    });
+};
+
+const stageReservationAttachment = (reservationId: number, event: Event) => {
+    const input = event.target as HTMLInputElement;
+    const accepted = acceptedFiles(input.files ?? []);
+    attachmentForm.files = accepted;
+    attachmentForm.reservation_id = reservationId;
+    input.value = '';
+};
+
+const submitReservationAttachment = () => {
+    if (attachmentForm.files.length === 0 || attachmentForm.reservation_id === null) {
+        return;
+    }
+
+    attachmentForm.post(uploadDocument.url(props.trip.id), {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            attachmentForm.reset('files', 'title_prefix', 'document_type', 'expires_on', 'notes', 'reservation_id');
+        },
+    });
+};
+
+const documentFileUrl = (document: TripDocument, download = false): string | null => {
+    if (document.file_url === null) {
+        return null;
+    }
+
+    return download ? `${document.file_url}?download=1` : document.file_url;
+};
+
+const openLightbox = (document: TripDocument) => {
+    lightboxDocument.value = document;
+};
+
+const closeLightbox = () => {
+    lightboxDocument.value = null;
+};
+
+const reservationTitleFor = (id: number | null): string => {
+    if (id === null) {
+        return 'Not linked';
+    }
+
+    return props.trip.reservations.find((reservation) => reservation.id === id)?.title ?? 'Reservation';
+};
+
+const toggleReservationAttachments = (id: number) => {
+    const next = new Set(expandedReservations.value);
+
+    if (next.has(id)) {
+        next.delete(id);
+    } else {
+        next.add(id);
+    }
+
+    expandedReservations.value = next;
+};
+
+const isReservationExpanded = (id: number): boolean => expandedReservations.value.has(id);
 
 const setTaskCompletion = (event: Event) => {
     editData.value.completed_at = (event.target as HTMLInputElement).checked ? new Date().toISOString().slice(0, 16) : null;
@@ -894,9 +1112,56 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <div class="mt-2 text-sm">{{ formatDateTime(reservation.starts_at, reservation.starts_timezone) }} - {{ formatDateTime(reservation.ends_at, reservation.ends_timezone) }}</div>
                                         <p v-if="reservation.address" class="mt-2 text-sm text-muted-foreground dark:text-muted-foreground">{{ reservation.address }}</p>
                                         <p v-if="reservation.notes" class="mt-2 rounded-md bg-muted p-2 text-sm text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ reservation.notes }}</p>
+                                        <div class="mt-3 rounded-md border border-dashed border-border p-3">
+                                            <button type="button" class="flex w-full items-center justify-between text-sm font-medium" @click="toggleReservationAttachments(reservation.id)">
+                                                <span class="flex items-center gap-2">
+                                                    <Paperclip class="h-4 w-4" />
+                                                    Attachments
+                                                    <span class="text-xs text-muted-foreground">({{ reservation.document_count }})</span>
+                                                </span>
+                                                <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': isReservationExpanded(reservation.id) }" />
+                                            </button>
+                                            <div v-if="isReservationExpanded(reservation.id)" class="mt-3 space-y-2">
+                                                <div v-for="document in documentsByReservation.get(reservation.id) ?? []" :key="document.id" class="flex items-center gap-3 rounded-md bg-muted/50 p-2 text-sm">
+                                                    <button v-if="document.preview_kind === 'image'" type="button" class="shrink-0" @click="openLightbox(document)">
+                                                        <img :src="document.file_url ?? undefined" :alt="document.title" class="h-12 w-12 rounded-md object-cover ring-1 ring-border" loading="lazy" />
+                                                    </button>
+                                                    <a v-else-if="document.file_url" :href="documentFileUrl(document) ?? undefined" target="_blank" rel="noopener" class="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-background ring-1 ring-border">
+                                                        <FileText v-if="document.preview_kind === 'pdf'" class="h-6 w-6 text-primary" />
+                                                        <FileQuestion v-else class="h-6 w-6 text-muted-foreground" />
+                                                    </a>
+                                                    <div v-else class="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-background ring-1 ring-border">
+                                                        <StickyNote class="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                    <div class="min-w-0 flex-1">
+                                                        <div class="truncate font-medium">{{ document.title }}</div>
+                                                        <div class="truncate text-xs text-muted-foreground">{{ document.original_filename || document.document_type }}<template v-if="document.size_label"> · {{ document.size_label }}</template></div>
+                                                    </div>
+                                                    <a v-if="document.file_url" :href="documentFileUrl(document, true) ?? undefined" class="travel-touch inline-flex h-9 w-9 items-center justify-center rounded-md border border-border" aria-label="Download">
+                                                        <Download class="h-4 w-4" />
+                                                    </a>
+                                                </div>
+                                                <div v-if="(documentsByReservation.get(reservation.id) ?? []).length === 0" class="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
+                                                    No files attached yet.
+                                                </div>
+                                                <div v-if="trip.can_edit" class="rounded-md bg-muted/40 p-3">
+                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple class="text-xs" @change="stageReservationAttachment(reservation.id, $event)" />
+                                                    <form v-if="attachmentForm.reservation_id === reservation.id && attachmentForm.files.length" class="mt-3 grid gap-2" @submit.prevent="submitReservationAttachment">
+                                                        <div class="text-xs text-muted-foreground">{{ attachmentForm.files.map((file) => file.name).join(', ') }}</div>
+                                                        <Input class="travel-touch" v-model="attachmentForm.title_prefix" placeholder="Title prefix (optional)" />
+                                                        <Button type="submit" size="sm" class="travel-button-primary" :disabled="attachmentForm.processing">Upload to reservation</Button>
+                                                        <InputError :message="attachmentForm.errors.files" />
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <p v-if="isShared && reservation.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ reservation.last_edited_by }}</p>
                                     </div>
                                     <div class="flex items-center gap-2">
+                                        <span v-if="reservation.document_count > 0" class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">
+                                            <Paperclip class="h-3 w-3" />
+                                            {{ reservation.document_count }}
+                                        </span>
                                         <span class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">{{ reservation.status }}</span>
                                         <Button
                                             v-if="trip.can_edit"
@@ -1282,12 +1547,56 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
             <section v-if="activePanel === 'documents'" class="grid gap-4 lg:grid-cols-[1fr_22rem]">
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Documents</CardTitle></CardHeader>
-                    <CardContent class="space-y-2">
+                    <CardContent class="space-y-4">
+                        <div
+                            class="rounded-md border-2 border-dashed p-6 text-center transition-colors"
+                            :class="dropActive ? 'border-primary bg-primary/5' : 'border-border bg-muted/30'"
+                            @dragenter.prevent="dropActive = true"
+                            @dragover.prevent="dropActive = true"
+                            @dragleave.prevent="dropActive = false"
+                            @drop.prevent="handleDrop"
+                        >
+                            <input ref="fileInputEl" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple class="hidden" @change="handleFileInput" />
+                            <Button type="button" class="travel-button-primary" @click="fileInputEl?.click()">
+                                <Upload class="h-4 w-4" />
+                                Choose files
+                            </Button>
+                            <p class="mt-2 text-sm text-muted-foreground">PDFs and images up to 15 MB each. Max 10 per upload.</p>
+                        </div>
+
+                        <form v-if="uploadForm.files.length" class="grid gap-3 rounded-md border border-border bg-card p-3" @submit.prevent="submitUpload">
+                            <div class="space-y-2">
+                                <div v-for="(file, index) in uploadForm.files" :key="`${file.name}-${index}`" class="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
+                                    <span class="min-w-0 flex-1 truncate">{{ file.name }}</span>
+                                    <span class="text-xs text-muted-foreground">{{ formatBytes(file.size) }}</span>
+                                    <button type="button" class="text-xs font-medium text-destructive" @click="removeStagedFile(index)">Remove</button>
+                                </div>
+                            </div>
+                            <Input class="travel-touch" v-model="uploadForm.title_prefix" placeholder="Title prefix (optional)" />
+                            <Input class="travel-touch" v-model="uploadForm.document_type" placeholder="Type (boarding pass, passport, receipt)" />
+                            <Input class="travel-touch" v-model="uploadForm.expires_on" type="date" />
+                            <textarea v-model="uploadForm.notes" class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes applied to every uploaded file" />
+                            <div v-if="uploadForm.progress" class="h-2 overflow-hidden rounded-full bg-muted">
+                                <div class="h-full rounded-full bg-primary transition-all" :style="{ width: `${uploadForm.progress.percentage}%` }" />
+                            </div>
+                            <InputError :message="uploadForm.errors.files" />
+                            <InputError v-for="error in stagedFileErrors" :key="error" :message="error" />
+                            <Button type="submit" class="travel-button-primary" :disabled="uploadForm.processing">Upload {{ uploadForm.files.length }} file{{ uploadForm.files.length === 1 ? '' : 's' }}</Button>
+                        </form>
+
+                        <div v-if="trip.documents.length === 0" class="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                            No documents yet.
+                        </div>
+
                         <div v-for="document in trip.documents" :id="`document-${document.id}`" :key="document.id" tabindex="-1" class="rounded-md border border-border p-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-border">
                             <form v-if="isEditing('document', document.id)" class="grid gap-3" @submit.prevent="patchEdit(updateDocument.url({ trip: trip.id, document: document.id }))">
                                 <Input class="travel-touch" v-model="editData.title" placeholder="Document title" />
                                 <Input class="travel-touch" v-model="editData.document_type" placeholder="Type" />
                                 <Input class="travel-touch" v-model="editData.expires_on" type="date" />
+                                <select v-model="editData.reservation_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                    <option :value="null">Not linked to a reservation</option>
+                                    <option v-for="reservation in trip.reservations" :key="reservation.id" :value="reservation.id">{{ reservation.title }} ({{ reservation.type }})</option>
+                                </select>
                                 <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                 <div class="flex gap-2">
                                     <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
@@ -1295,12 +1604,35 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 </div>
                             </form>
                             <template v-else>
-                                <div class="flex items-start justify-between gap-3">
-                                    <div>
-                                        <div class="font-medium">{{ document.title }}</div>
-                                        <div class="text-muted-foreground dark:text-muted-foreground">{{ document.document_type }} · expires {{ formatDate(document.expires_on) }}</div>
+                                <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                                    <button v-if="document.preview_kind === 'image'" type="button" class="shrink-0" @click="openLightbox(document)">
+                                        <img :src="document.file_url ?? undefined" :alt="document.title" class="h-20 w-20 rounded-md object-cover ring-1 ring-border" loading="lazy" />
+                                    </button>
+                                    <a v-else-if="document.file_url" :href="documentFileUrl(document) ?? undefined" :target="document.preview_kind === 'pdf' ? '_blank' : undefined" rel="noopener" class="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-muted ring-1 ring-border">
+                                        <FileText v-if="document.preview_kind === 'pdf'" class="h-9 w-9 text-primary" />
+                                        <Image v-else-if="document.preview_kind === 'image-opaque'" class="h-9 w-9 text-muted-foreground" />
+                                        <FileQuestion v-else class="h-9 w-9 text-muted-foreground" />
+                                    </a>
+                                    <div v-else class="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-muted ring-1 ring-border">
+                                        <StickyNote class="h-9 w-9 text-muted-foreground" />
                                     </div>
-                                    <div class="flex items-center gap-2">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="font-medium">{{ document.title }}</div>
+                                        <div class="text-muted-foreground dark:text-muted-foreground">
+                                            {{ document.document_type }}
+                                            <template v-if="document.expires_on"> · expires {{ formatDate(document.expires_on) }}</template>
+                                            <template v-if="document.size_label"> · {{ document.size_label }}</template>
+                                        </div>
+                                        <div v-if="document.original_filename" class="mt-1 truncate text-xs text-muted-foreground">{{ document.original_filename }}</div>
+                                        <div v-if="document.reservation_id" class="mt-1 text-xs text-muted-foreground">Linked to {{ reservationTitleFor(document.reservation_id) }}</div>
+                                        <p v-if="document.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ document.notes }}</p>
+                                        <p v-if="isShared && document.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ document.last_edited_by }}</p>
+                                    </div>
+                                    <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                        <a v-if="document.file_url" :href="documentFileUrl(document, true) ?? undefined" class="travel-touch inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-xs font-medium">
+                                            <Download class="h-4 w-4" />
+                                            Download
+                                        </a>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('document', document)">Edit</Button>
                                         <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyDocument.url({ trip: trip.id, document: document.id }), document.title)">
                                             <Trash2 class="h-4 w-4" />
@@ -1308,21 +1640,23 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         </Button>
                                     </div>
                                 </div>
-                                <p v-if="document.notes" class="mt-2 rounded-md bg-muted p-2 text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ document.notes }}</p>
-                                <p v-if="isShared && document.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ document.last_edited_by }}</p>
                             </template>
                         </div>
                     </CardContent>
                 </Card>
                 <Card class="travel-panel">
-                    <CardHeader><CardTitle class="text-base">Add Document Note</CardTitle></CardHeader>
+                    <CardHeader><CardTitle class="text-base">Add Note Instead</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(documentForm, storeDocument.url(trip.id), ['title', 'expires_on', 'notes'])">
+                        <form class="grid gap-3" @submit.prevent="post(documentForm, storeDocument.url(trip.id), ['title', 'expires_on', 'notes', 'reservation_id'])">
                             <Input class="travel-touch" v-model="documentForm.title" placeholder="Document title" />
                             <Input class="travel-touch" v-model="documentForm.document_type" placeholder="Type" />
                             <Input class="travel-touch" v-model="documentForm.expires_on" type="date" />
+                            <select v-model="documentForm.reservation_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                <option :value="null">Not linked to a reservation</option>
+                                <option v-for="reservation in trip.reservations" :key="reservation.id" :value="reservation.id">{{ reservation.title }} ({{ reservation.type }})</option>
+                            </select>
                             <textarea v-model="documentForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
-                            <Button type="submit" class="travel-button-primary" :disabled="documentForm.processing">Add document</Button>
+                            <Button type="submit" class="travel-button-primary" :disabled="documentForm.processing">Add note</Button>
                         </form>
                     </CardContent>
                 </Card>
@@ -1466,6 +1800,23 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     </Card>
                 </div>
             </section>
+        </div>
+
+        <div
+            v-if="lightboxDocument"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+            role="dialog"
+            aria-modal="true"
+            @click.self="closeLightbox"
+            @keydown.esc="closeLightbox"
+        >
+            <button type="button" class="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Close preview" @click="closeLightbox">
+                <X class="h-6 w-6" />
+            </button>
+            <img :src="lightboxDocument.file_url ?? undefined" :alt="lightboxDocument.title" class="max-h-full max-w-full rounded-md object-contain" />
+            <div class="absolute bottom-4 left-1/2 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-black/70 px-4 py-2 text-sm text-white">
+                {{ lightboxDocument.title }}<template v-if="lightboxDocument.size_label"> · {{ lightboxDocument.size_label }}</template>
+            </div>
         </div>
     </div>
 </template>

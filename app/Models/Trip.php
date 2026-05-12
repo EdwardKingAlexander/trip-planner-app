@@ -33,6 +33,17 @@ class Trip extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::deleting(function (Trip $trip): void {
+            if (! $trip->isForceDeleting()) {
+                return;
+            }
+
+            $trip->documents()->each(fn (TripDocument $document) => $document->delete());
+        });
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

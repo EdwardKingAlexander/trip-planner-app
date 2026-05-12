@@ -6,6 +6,7 @@ use App\Http\Controllers\ReminderInboxController;
 use App\Http\Controllers\TripAutomationController;
 use App\Http\Controllers\TripCollaboratorController;
 use App\Http\Controllers\TripController;
+use App\Http\Controllers\TripDocumentController;
 use App\Http\Controllers\TripExportController;
 use App\Http\Controllers\TripImportController;
 use App\Http\Controllers\TripItineraryController;
@@ -46,7 +47,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('trips/{trip}/tasks/{task}', [TripPlanningController::class, 'updateTask'])->name('trips.tasks.update');
     Route::patch('trips/{trip}/tasks/{task}/completion', [TripPlanningController::class, 'toggleTaskCompletion'])->name('trips.tasks.toggle-completion');
     Route::delete('trips/{trip}/tasks/{task}', [TripPlanningController::class, 'destroyTask'])->name('trips.tasks.destroy');
+    Route::post('trips/{trip}/documents/upload', [TripDocumentController::class, 'upload'])->name('trips.documents.upload');
     Route::post('trips/{trip}/documents', [TripPlanningController::class, 'document'])->name('trips.documents.store');
+    Route::get('trips/{trip}/documents/{document}/file', [TripDocumentController::class, 'file'])->name('trips.documents.file');
     Route::patch('trips/{trip}/documents/{document}', [TripPlanningController::class, 'updateDocument'])->name('trips.documents.update');
     Route::delete('trips/{trip}/documents/{document}', [TripPlanningController::class, 'destroyDocument'])->name('trips.documents.destroy');
     Route::post('trips/{trip}/reminders', [TripPlanningController::class, 'reminder'])->name('trips.reminders.store');

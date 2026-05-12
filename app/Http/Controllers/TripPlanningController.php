@@ -252,7 +252,7 @@ class TripPlanningController extends Controller
     {
         $this->authorize('update', $trip);
 
-        $document = $trip->documents()->create($this->validatedDocument($request));
+        $document = $trip->documents()->create($this->validatedDocument($request, $trip));
 
         $events->record(
             trip: $trip,
@@ -270,7 +270,7 @@ class TripPlanningController extends Controller
         $this->authorize('update', $trip);
         abort_unless($document->trip_id === $trip->id, 404);
 
-        $document->update($this->validatedDocument($request));
+        $document->update($this->validatedDocument($request, $trip));
 
         $events->record(
             trip: $trip,
@@ -405,13 +405,18 @@ class TripPlanningController extends Controller
         ]);
     }
 
-    private function validatedDocument(Request $request): array
+    private function validatedDocument(Request $request, Trip $trip): array
     {
         return $request->validate([
             'title' => ['required', 'string', 'max:160'],
             'document_type' => ['required', 'string', 'max:80'],
             'expires_on' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'reservation_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('reservations', 'id')->where(fn ($query) => $query->where('trip_id', $trip->id)),
+            ],
         ]);
     }
 

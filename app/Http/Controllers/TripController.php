@@ -225,6 +225,7 @@ class TripController extends Controller
                 'flight_segments' => $reservation->flightSegments,
                 'lodging_stay' => $reservation->lodgingStay,
                 'last_edited_by' => $this->editorName($reservation),
+                'document_count' => $trip->documents->where('reservation_id', $reservation->id)->count(),
             ]),
             'costs' => $trip->costs->map(fn ($cost) => [
                 ...$cost->toArray(),
@@ -243,6 +244,13 @@ class TripController extends Controller
             'documents' => $trip->documents->map(fn ($document) => [
                 ...$document->toArray(),
                 'last_edited_by' => $this->editorName($document),
+                'file_url' => $document->file_path !== null
+                    ? route('trips.documents.file', ['trip' => $trip->id, 'document' => $document->id], absolute: false)
+                    : null,
+                'preview_kind' => $document->previewKind(),
+                'size_label' => $document->file_size_bytes !== null
+                    ? $this->humanFileSize($document->file_size_bytes)
+                    : null,
             ]),
             'reminders' => $trip->reminders->map(fn ($reminder) => [
                 ...$reminder->toArray(),
@@ -263,6 +271,19 @@ class TripController extends Controller
         $editor = $model->updatedBy;
 
         return $editor?->first_name !== '' ? $editor?->first_name : null;
+    }
+
+    private function humanFileSize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes.' B';
+        }
+
+        if ($bytes < 1048576) {
+            return round($bytes / 1024, 1).' KB';
+        }
+
+        return round($bytes / 1048576, 1).' MB';
     }
 
     /**

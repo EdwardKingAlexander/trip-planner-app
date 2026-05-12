@@ -1,0 +1,214 @@
+{
+    "module": "document-uploads",
+    "status": "verified",
+    "last_updated": "2026-05-12",
+    "current_phase": {
+        "id": "05-verification-and-release",
+        "status": "verified",
+        "next_action": "Module implemented, verified, committed, and ready for release. Remaining manual browser checks are the Phase 05 matrix if desired on real trip data."
+    },
+    "phase_status": [
+        {
+            "id": "01-data-model-and-upload-contract",
+            "file": "ai/modules/document-uploads/01-data-model-and-upload-contract.md",
+            "status": "verified"
+        },
+        {
+            "id": "02-backend-upload-and-download",
+            "file": "ai/modules/document-uploads/02-backend-upload-and-download.md",
+            "status": "verified"
+        },
+        {
+            "id": "03-frontend-documents-tab-upload",
+            "file": "ai/modules/document-uploads/03-frontend-documents-tab-upload.md",
+            "status": "verified"
+        },
+        {
+            "id": "04-reservation-card-attachments",
+            "file": "ai/modules/document-uploads/04-reservation-card-attachments.md",
+            "status": "verified"
+        },
+        {
+            "id": "05-verification-and-release",
+            "file": "ai/modules/document-uploads/05-verification-and-release.md",
+            "status": "verified"
+        }
+    ],
+    "audit_findings": [
+        {
+            "file": "database/migrations/2026_05_04_000001_create_trip_management_tables.php",
+            "lines": "176-186",
+            "finding": "trip_documents already has reservation_id (nullable FK) and file_path (nullable string). Three new columns needed for clean UI rendering: original_filename, mime_type, file_size_bytes."
+        },
+        {
+            "file": "app/Http/Controllers/TripPlanningController.php",
+            "lines": "251-302,408-416",
+            "finding": "validatedDocument() accepts only title, document_type, expires_on, notes. reservation_id and file_path are never written. No upload action exists anywhere."
+        },
+        {
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1282-1329",
+            "finding": "Documents tab renders as text-only rows with no file picker, no preview, no download button. Reservation cards (lines 827-925) do not surface attachments at all."
+        },
+        {
+            "file": "config/filesystems.php",
+            "lines": "16",
+            "finding": "Default disk is 'local' writing to storage/app/private. Files will be private; access must go through a controller (no public URL)."
+        },
+        {
+            "file": "app/Http/Controllers/TripController.php",
+            "lines": "77,237-240",
+            "finding": "Trip serializer eager loads documents.updatedBy and attaches only last_edited_by. Needs file_url + preview_kind + size_label per document, plus document_count per reservation."
+        },
+        {
+            "file": "app/Models/TripDocument.php",
+            "lines": "13",
+            "finding": "$fillable already includes reservation_id and file_path. Needs original_filename, mime_type, file_size_bytes added. No deleting hook for file cleanup."
+        }
+    ],
+    "decisions_locked_in": [
+        "File constraints: pdf, jpg, jpeg, png, webp, heic, heif. Max 15 MB per file. Max 10 files per upload request.",
+        "Multi-file UX: multi-select or drag-drop creates one document row per file. The existing one-file-per-row schema stays.",
+        "Reservation linking surfaces: upload directly from the reservation card (auto-links reservation_id). After-the-fact linking via the existing edit form's new reservation dropdown. No 'attach existing' picker; no reservation dropdown in the documents-tab upload form.",
+        "Preview behavior: image thumbnails inline with click-to-enlarge lightbox modal; PDFs open in a new tab via Content-Disposition: inline; HEIC/HEIF treated as download-only (image-opaque preview kind).",
+        "Storage disk: local, private, under storage/app/private/trips/{trip_id}/documents/{document_id}/.",
+        "File serving: dedicated GET endpoint authorized via the trip view policy. No public URLs, no signed URLs. Same URL serves <img src> and new-tab PDF open.",
+        "Activity event: document.uploaded (new event type, distinct from document.created for text-only notes). Reuses TripChangedNotification — no new notification class.",
+        "Model deleting hook on TripDocument removes the underlying file. Trip force-delete path explicitly iterates documents so cascaded deletes also clean files. Soft-delete leaves files in place.",
+        "Dedicated TripDocumentController for upload + file actions. Existing TripPlanningController text-note actions stay in place, gain reservation_id support.",
+        "Out-of-scope polish (deferred): cloud storage migration, OCR, antivirus, thumbnail generation, replace-file flow, multi-file-per-record schema, 'attach existing' picker, versioning."
+    ],
+    "open_questions": [
+        "Resolved: preview kind label is image-opaque for HEIC/HEIF download-only image files.",
+        "Resolved: migration timestamp is 2026_05_12_043103_add_file_metadata_to_trip_documents.php.",
+        "Resolved: humanFileSize() lives on TripController for now because it is only serializer output.",
+        "Resolved: storage path uses trips/{trip_id}/documents/{document_id}/{hash}-{sanitized_filename}.",
+        "Resolved: document row and reservation upload UI stayed inline in Trips/Show.vue to avoid over-extracting during the first implementation."
+    ],
+    "endpoint_contract": {
+        "upload": {
+            "method": "POST",
+            "url": "/trips/{trip}/documents/upload",
+            "name": "trips.documents.upload",
+            "request_body": {
+                "files": "File[] (required, min 1, max 10, each <=15MB, mimes:pdf,jpg,jpeg,png,webp,heic,heif)",
+                "title_prefix": "string (nullable, max 120)",
+                "document_type": "string (nullable, max 80)",
+                "expires_on": "date (nullable)",
+                "notes": "string (nullable, max 1000)",
+                "reservation_id": "integer (nullable, must be a reservation on this trip)"
+            },
+            "success_response": "302 back() with success flash; N rows created in trip_documents; N files written to disk; N document.uploaded activity events",
+            "error_responses": {
+                "validation": "422 with field-level errors on files / files.* / reservation_id / etc.",
+                "not_authorized": "403 if not trip editor",
+                "unauthenticated": "302 to login"
+            },
+            "authorization": "trip update policy"
+        },
+        "file": {
+            "method": "GET",
+            "url": "/trips/{trip}/documents/{document}/file",
+            "name": "trips.documents.file",
+            "success_response": "200 with Content-Type matching mime_type, Content-Disposition: inline, body streams the file",
+            "error_responses": {
+                "not_participant": "403",
+                "wrong_trip": "404",
+                "no_file_on_row": "404",
+                "missing_on_disk": "404",
+                "unauthenticated": "302 to login"
+            },
+            "authorization": "trip view policy"
+        },
+        "store_note": {
+            "method": "POST",
+            "url": "/trips/{trip}/documents",
+            "name": "trips.documents.store",
+            "change": "validation rules gain optional reservation_id (must belong to this trip). No file fields accepted via this endpoint."
+        },
+        "update": {
+            "method": "PATCH",
+            "url": "/trips/{trip}/documents/{document}",
+            "name": "trips.documents.update",
+            "change": "validation rules gain optional reservation_id (must belong to this trip). Used for after-the-fact reservation linking from the documents-tab edit form."
+        },
+        "destroy": {
+            "method": "DELETE",
+            "url": "/trips/{trip}/documents/{document}",
+            "name": "trips.documents.destroy",
+            "change": "Model deleting hook removes the underlying file from disk."
+        }
+    },
+    "ux_rules": {
+        "documents_tab_drop_zone": "dashed-border zone at the top of the documents tab; drag-drop or click to pick; stages up to 10 files with size labels; shared title_prefix/document_type/expires_on/notes fields applied to the batch",
+        "documents_tab_row_layout": "thumbnail/icon on the left (h-16 w-16), title + metadata in the center, download/edit/delete on the right",
+        "preview_routing": "image -> lightbox modal | pdf -> new tab via target=_blank + Content-Disposition: inline | image-opaque (heic) -> download | file (other) -> download | note -> render text only",
+        "lightbox": "fixed inset-0 bg-black/80 modal; Esc closes; backdrop click closes; focus returns to the originating thumbnail button",
+        "reservation_card_badge": "small pill with paperclip icon + count when document_count > 0",
+        "reservation_card_attachments_section": "collapsible block inside the read-only branch of each reservation card; auto-expanded when document_count > 0; compact upload affordance + linked document rows reusing the DocumentRow markup",
+        "edit_form_reservation_dropdown": "select with 'Not linked' option plus every trip reservation; used for after-the-fact linking from the documents tab",
+        "text_note_form_demoted": "existing 'Add document note' form moves into a <details> block titled 'Add a note instead (no file)' to keep visual hierarchy on uploads",
+        "upload_progress": "inline progress bar driven by Inertia useForm onProgress; reset on success or error"
+    },
+    "state_owners": {
+        "file_metadata_truth": "DB trip_documents.{file_path,original_filename,mime_type,file_size_bytes}",
+        "file_bytes_truth": "disk storage/app/private/trips/{trip_id}/documents/{document_id}/{hash}-{sanitized_filename}",
+        "reservation_link_truth": "DB trip_documents.reservation_id",
+        "added_by_truth": "DB trip_documents.created_by_user_id (TracksAuthor)",
+        "upload_form_state": "useForm in Trips/Show.vue (documents tab) and a per-card useForm in ReservationAttachmentUpload (Phase 04)",
+        "upload_progress_state": "ref<number | null> in Trips/Show.vue, driven by Inertia onProgress callback",
+        "lightbox_state": "ref<TripDocument | null> in Trips/Show.vue; shared by documents tab and reservation card",
+        "expanded_reservations_state": "ref<Set<number>> in Trips/Show.vue; seeded on mount from document_count, not persisted",
+        "drop_zone_active_state": "ref<boolean> in Trips/Show.vue, toggled by dragenter/dragover/dragleave/drop"
+    },
+    "verification": [
+        {
+            "command": "php artisan migrate --no-interaction",
+            "result": "passed",
+            "notes": "Ran 2026_05_12_043103_add_file_metadata_to_trip_documents successfully."
+        },
+        {
+            "command": "php artisan wayfinder:generate --with-form --no-interaction",
+            "result": "passed",
+            "notes": "Generated updated route/action helpers including trips.documents.upload and trips.documents.file."
+        },
+        {
+            "command": "php artisan test --compact tests/Feature/TripDocumentUploadTest.php tests/Feature/TripDocumentSerializerTest.php tests/Feature/ReleaseNotificationTest.php",
+            "result": "passed",
+            "notes": "10 tests, 57 assertions."
+        },
+        {
+            "command": "php artisan test --compact",
+            "result": "passed",
+            "notes": "128 tests, 592 assertions."
+        },
+        {
+            "command": "npm run lint:check",
+            "result": "passed",
+            "notes": "ESLint passed."
+        },
+        {
+            "command": "npm run types:check",
+            "result": "passed",
+            "notes": "vue-tsc passed."
+        },
+        {
+            "command": "npm run build",
+            "result": "passed",
+            "notes": "Vite production build passed; Wayfinder plugin regenerated types during build."
+        },
+        {
+            "command": "vendor/bin/pint --dirty --format agent",
+            "result": "passed",
+            "notes": "Pint fixed ReleaseChangedNotification formatting; targeted tests passed again afterward."
+        }
+    ],
+    "handoff": {
+        "summary": "Implemented document uploads end to end. Upload/download endpoints live in app/Http/Controllers/TripDocumentController.php, private path generation lives in app/Services/TripDocumentStorage.php, serializer metadata is in TripController, and the documents tab plus reservation attachment sections are in resources/js/pages/Trips/Show.vue. A release:notify command plus local pre-push hook send in-app notifications to every user when main is pushed from this workspace.",
+        "next_agent_steps": [
+            "Optional manual browser pass: run the Phase 05 verification matrix on real trip data.",
+            "If release notifications should also run outside this local workspace, wire php artisan release:notify into the production deployment pipeline after successful deploy.",
+            "Future extraction opportunity: move repeated document row markup from Trips/Show.vue into a reusable component if another page needs the same file surface."
+        ]
+    }
+}
