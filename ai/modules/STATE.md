@@ -1,6 +1,6 @@
 # Vacation Plan App Build State
 
-Last updated: 2026-05-07
+Last updated: 2026-05-12
 
 ## Current Phase
 
@@ -68,3 +68,4 @@ When implementation begins:
 - Phases 01-07 are implemented and verified for the hosted personal-use app.
 - Live flight status remains provider-ready but not connected to an external aviation API because no provider/API key has been selected.
 - Confirmation import supports pasted text review. Calendar import supports pasted ICS text review and commit.
+- Packing attribution module is verified: packing items now expose who added them, who is assigned to pack them, targeted pack/unpack notifications for the adder, per-assignee progress segments, and a per-trip "Mine to pack" filter.

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Bell,
     CalendarClock,
@@ -22,6 +22,7 @@ import { computed, onMounted, ref } from 'vue';
 import { nextTick, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,6 +35,35 @@ import { destroy as destroyPackingItem, store as storePackingItem, togglePacked,
 import { destroy as destroyReminder, store as storeReminder, update as updateReminder } from '@/routes/trips/reminders';
 import { destroy as destroyReservation, store as storeReservation, update as updateReservation } from '@/routes/trips/reservations';
 import { destroy as destroyTask, store as storeTask, update as updateTask } from '@/routes/trips/tasks';
+
+type ParticipantSummary = {
+    id: number;
+    name: string;
+    first_name: string;
+    initials: string;
+};
+
+type PackingItem = Record<string, any> & {
+    id: number;
+    is_packed: boolean;
+    sort_order?: number | null;
+    label: string;
+    quantity: number;
+    traveler_name?: string | null;
+    category: string;
+    notes?: string | null;
+    assigned_to_user_id: number | null;
+    added_by: ParticipantSummary | null;
+    assigned_to: ParticipantSummary | null;
+};
+
+type AssigneeProgress = {
+    key: string;
+    label: string;
+    initials: string;
+    packed: number;
+    total: number;
+};
 
 type Trip = {
     id: number;
@@ -77,16 +107,18 @@ type Trip = {
     }>;
     reservations: Array<Record<string, any>>;
     costs: Array<Record<string, any>>;
-    packing_items: Array<Record<string, any> & { id: number; is_packed: boolean; sort_order?: number | null; label: string; quantity: number; traveler_name?: string | null; category: string; notes?: string | null }>;
+    packing_items: PackingItem[];
     tasks: Array<Record<string, any>>;
     documents: Array<Record<string, any>>;
     reminders: Array<Record<string, any>>;
     collaborators: Array<Record<string, any>>;
+    participants: Array<ParticipantSummary & { role: 'owner' | 'editor' | 'viewer' }>;
     import_batches: Array<Record<string, any>>;
     automation_suggestions: Array<Record<string, any>>;
 };
 
 const props = defineProps<{ trip: Trip }>();
+const page = usePage();
 
 defineOptions({
     layout: {
@@ -107,7 +139,9 @@ const editData = ref<Record<string, any>>({});
 const togglingPackingIds = ref(new Set<number>());
 const packingRowErrors = ref<Record<number, string>>({});
 const hidePacked = ref(false);
+const mineOnly = ref(false);
 const missingSubjectAlert = ref(false);
+const currentUserId = computed(() => page.props.auth.user?.id ?? null);
 
 const itineraryForm = useForm({
     trip_day_id: props.trip.days[0]?.id ?? null,
@@ -156,6 +190,7 @@ const costForm = useForm({
 
 const packingForm = useForm({
     traveler_name: '',
+    assigned_to_user_id: currentUserId.value,
     category: 'clothes',
     label: '',
     quantity: 1,
@@ -205,13 +240,69 @@ const panels = [
     { id: 'sharing', label: 'Sharing', icon: Share2 },
 ];
 
+function travelerInitials(value?: string | null): string {
+    const cleaned = value?.trim();
+
+    if (!cleaned) {
+        return 'NA';
+    }
+
+    return cleaned
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase();
+}
+
+function participantOptionLabel(participant: ParticipantSummary): string {
+    return `${participant.first_name}${participant.id === currentUserId.value ? ' (me)' : ''}`;
+}
+
+function assigneeLabel(item: PackingItem): string {
+    return item.assigned_to?.name ?? item.traveler_name?.trim() ?? 'Anyone';
+}
+
+function assigneeInitials(item: PackingItem): string {
+    return item.assigned_to?.initials ?? travelerInitials(item.traveler_name);
+}
+
+function packingEmptyMessage(): string {
+    if (mineOnly.value) {
+        const hasMine = props.trip.packing_items.some((item) => item.assigned_to_user_id === currentUserId.value);
+
+        if (!hasMine) {
+            return 'Nothing assigned to you yet. Assign a packing item to your name to claim it.';
+        }
+
+        return hidePacked.value ? "You're all packed." : 'No packing items match this filter.';
+    }
+
+    if (hidePacked.value) {
+        return "Everything's packed. Bon voyage.";
+    }
+
+    return 'No packing items yet.';
+}
+
 const hidePackedKey = computed(() => `packing-hide-packed:${props.trip.id}`);
+const mineOnlyKey = computed(() => `packing-mine-only:${props.trip.id}`);
 const packedCount = computed(() => props.trip.packing_items.filter((item) => item.is_packed).length);
 const totalPackingCount = computed(() => props.trip.packing_items.length);
 const packedPercentage = computed(() => totalPackingCount.value === 0 ? 0 : Math.round((packedCount.value / totalPackingCount.value) * 100));
-const visiblePackingItems = computed(() => hidePacked.value
-    ? props.trip.packing_items.filter((item) => !item.is_packed)
-    : props.trip.packing_items);
+const visiblePackingItems = computed(() => {
+    let items = props.trip.packing_items;
+
+    if (mineOnly.value && currentUserId.value !== null) {
+        items = items.filter((item) => item.assigned_to_user_id === currentUserId.value);
+    }
+
+    if (hidePacked.value) {
+        items = items.filter((item) => !item.is_packed);
+    }
+
+    return items;
+});
 const orderedPackingItems = computed(() => [...visiblePackingItems.value].sort((a, b) => {
     if (a.is_packed === b.is_packed) {
         return (a.sort_order ?? 0) - (b.sort_order ?? 0);
@@ -219,9 +310,73 @@ const orderedPackingItems = computed(() => [...visiblePackingItems.value].sort((
 
     return a.is_packed ? 1 : -1;
 }));
+const assigneeProgress = computed<AssigneeProgress[]>(() => {
+    const buckets = new Map<string, AssigneeProgress>();
+
+    for (const item of props.trip.packing_items) {
+        const travelerName = item.traveler_name?.trim();
+        const key = item.assigned_to_user_id !== null
+            ? `user-${item.assigned_to_user_id}`
+            : travelerName
+                ? `name-${travelerName.toLowerCase()}`
+                : 'unassigned';
+
+        if (!buckets.has(key)) {
+            buckets.set(key, {
+                key,
+                label: item.assigned_to?.first_name ?? travelerName ?? 'Unassigned',
+                initials: item.assigned_to?.initials ?? travelerInitials(travelerName),
+                packed: 0,
+                total: 0,
+            });
+        }
+
+        const bucket = buckets.get(key);
+
+        if (bucket) {
+            bucket.total += 1;
+
+            if (item.is_packed) {
+                bucket.packed += 1;
+            }
+        }
+    }
+
+    const userOrder = new Map(props.trip.participants.map((participant, index) => [`user-${participant.id}`, index]));
+
+    return [...buckets.entries()]
+        .sort(([keyA], [keyB]) => {
+            const userA = userOrder.get(keyA);
+            const userB = userOrder.get(keyB);
+
+            if (userA !== undefined && userB !== undefined) {
+                return userA - userB;
+            }
+
+            if (userA !== undefined) {
+                return -1;
+            }
+
+            if (userB !== undefined) {
+                return 1;
+            }
+
+            if (keyA === 'unassigned') {
+                return 1;
+            }
+
+            if (keyB === 'unassigned') {
+                return -1;
+            }
+
+            return keyA.localeCompare(keyB);
+        })
+        .map(([, value]) => value);
+});
 
 onMounted(() => {
     hidePacked.value = window.localStorage.getItem(hidePackedKey.value) === '1';
+    mineOnly.value = window.localStorage.getItem(mineOnlyKey.value) === '1';
 
     const url = new URL(window.location.href);
     const focusPanel = url.searchParams.get('focus');
@@ -247,6 +402,10 @@ onMounted(() => {
 
 watch(hidePacked, (value) => {
     window.localStorage.setItem(hidePackedKey.value, value ? '1' : '0');
+});
+
+watch(mineOnly, (value) => {
+    window.localStorage.setItem(mineOnlyKey.value, value ? '1' : '0');
 });
 
 const plannedTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.planned_amount ?? 0), 0));
@@ -820,20 +979,42 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div class="min-w-0 flex-1">
                                 <CardTitle class="text-base">Packing List<span v-if="totalPackingCount"> · {{ packedCount }} of {{ totalPackingCount }} packed</span></CardTitle>
-                                <div v-if="totalPackingCount" class="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                                    <div class="h-full rounded-full bg-primary transition-[width]" :style="{ width: `${packedPercentage}%` }" />
+                                <div v-if="totalPackingCount" class="mt-3 space-y-2">
+                                    <div class="flex h-2 w-full overflow-hidden rounded-full bg-muted" :title="`${packedPercentage}% packed`">
+                                        <div
+                                            v-for="bucket in assigneeProgress"
+                                            :key="bucket.key"
+                                            class="relative h-full border-r border-background last:border-r-0"
+                                            :style="{ width: `${(bucket.total / totalPackingCount) * 100}%` }"
+                                            :title="`${bucket.label}: ${bucket.packed}/${bucket.total}`"
+                                        >
+                                            <div class="absolute inset-y-0 left-0 bg-primary transition-all" :style="{ width: `${(bucket.packed / bucket.total) * 100}%` }" />
+                                        </div>
+                                    </div>
+                                    <div v-if="!mineOnly && !hidePacked" class="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                        <span v-for="bucket in assigneeProgress" :key="`chip-${bucket.key}`" class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
+                                            <span class="font-medium text-foreground">{{ bucket.initials }}</span>
+                                            <span>{{ bucket.packed }}/{{ bucket.total }}</span>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                            <label v-if="totalPackingCount" class="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground">
-                                <input v-model="hidePacked" type="checkbox" class="rounded border-input" />
-                                Hide packed
-                            </label>
+                            <div v-if="totalPackingCount" class="flex flex-col gap-2 text-sm text-muted-foreground min-[420px]:flex-row sm:flex-col lg:flex-row">
+                                <label class="inline-flex min-h-11 items-center gap-2">
+                                    <input v-model="mineOnly" type="checkbox" class="rounded border-input" />
+                                    Mine to pack
+                                </label>
+                                <label class="inline-flex min-h-11 items-center gap-2">
+                                    <input v-model="hidePacked" type="checkbox" class="rounded border-input" />
+                                    Hide packed
+                                </label>
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent class="space-y-2">
-                        <div v-if="hidePacked && totalPackingCount > 0 && orderedPackingItems.length === 0" class="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                        <div v-if="totalPackingCount === 0 || orderedPackingItems.length === 0" class="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                             <CheckCircle2 class="mx-auto size-6 text-primary" />
-                            <p class="mt-2">Everything's packed. Bon voyage.</p>
+                            <p class="mt-2">{{ packingEmptyMessage() }}</p>
                         </div>
                         <div
                             v-for="item in orderedPackingItems"
@@ -846,6 +1027,15 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             <form v-if="isEditing('packing', item.id)" class="grid gap-3" @submit.prevent="patchEdit(updatePackingItem.url({ trip: trip.id, packingItem: item.id }))">
                                 <Input class="travel-touch" v-model="editData.label" placeholder="Item" />
                                 <Input class="travel-touch" v-model="editData.traveler_name" placeholder="Traveler name" />
+                                <label class="grid gap-1 text-sm">
+                                    <span class="text-muted-foreground">Who packs it?</span>
+                                    <select v-model="editData.assigned_to_user_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm" :disabled="!trip.can_edit">
+                                        <option :value="null">Unassigned (use traveler name)</option>
+                                        <option v-for="participant in trip.participants" :key="participant.id" :value="participant.id">
+                                            {{ participantOptionLabel(participant) }}
+                                        </option>
+                                    </select>
+                                </label>
                                 <div class="grid gap-3 min-[460px]:grid-cols-2">
                                     <Input class="travel-touch" v-model="editData.category" placeholder="Category" />
                                     <Input class="travel-touch" v-model="editData.quantity" type="number" min="1" />
@@ -875,7 +1065,27 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                                 <span :class="item.is_packed ? 'text-muted-foreground line-through' : 'font-medium'">{{ item.quantity }}x {{ item.label }}</span>
                                                 <span class="text-muted-foreground dark:text-muted-foreground"> · {{ item.category }}</span>
                                             </div>
-                                            <p class="mt-1 text-xs text-muted-foreground dark:text-muted-foreground">{{ item.traveler_name || 'Shared' }}</p>
+                                            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                                <span class="inline-flex items-center gap-1">
+                                                    <span>added by</span>
+                                                    <Avatar v-if="item.added_by" class="size-5" :title="item.added_by.name" :aria-label="`Added by ${item.added_by.name}`">
+                                                        <AvatarFallback class="bg-primary/15 text-[10px] font-medium text-primary">{{ item.added_by.initials }}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span v-else>unknown</span>
+                                                </span>
+                                                <span class="inline-flex items-center gap-1">
+                                                    <span>for</span>
+                                                    <Avatar
+                                                        class="size-5"
+                                                        :class="{ 'ring-1 ring-primary ring-offset-1 ring-offset-background': item.assigned_to_user_id === currentUserId }"
+                                                        :title="assigneeLabel(item)"
+                                                        :aria-label="`For ${assigneeLabel(item)}`"
+                                                    >
+                                                        <AvatarFallback class="bg-primary/15 text-[10px] font-medium text-primary">{{ assigneeInitials(item) }}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span class="max-w-32 truncate" :title="assigneeLabel(item)">{{ item.assigned_to?.first_name ?? item.traveler_name ?? 'anyone' }}</span>
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="flex shrink-0 items-center gap-2">
@@ -896,9 +1106,18 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <Card class="travel-panel">
                     <CardHeader><CardTitle class="text-base">Add Packing Item</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(packingForm, storePackingItem.url(trip.id), ['traveler_name', 'label', 'notes'])">
+                        <form class="grid gap-3" @submit.prevent="post(packingForm, storePackingItem.url(trip.id), ['traveler_name', 'assigned_to_user_id', 'label', 'notes'])">
                             <Input class="travel-touch" v-model="packingForm.label" placeholder="Item" />
                             <Input class="travel-touch" v-model="packingForm.traveler_name" placeholder="Traveler name" />
+                            <label class="grid gap-1 text-sm">
+                                <span class="text-muted-foreground">Who packs it?</span>
+                                <select v-model="packingForm.assigned_to_user_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm" :disabled="!trip.can_edit">
+                                    <option :value="null">Unassigned (use traveler name)</option>
+                                    <option v-for="participant in trip.participants" :key="participant.id" :value="participant.id">
+                                        {{ participantOptionLabel(participant) }}
+                                    </option>
+                                </select>
+                            </label>
                             <div class="grid gap-3 min-[460px]:grid-cols-2">
                                 <Input class="travel-touch" v-model="packingForm.category" placeholder="Category" />
                                 <Input class="travel-touch" v-model="packingForm.quantity" type="number" min="1" />

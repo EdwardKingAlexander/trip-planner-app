@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Trip;
+use App\Models\User;
 use App\Services\TripCollaborationEventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,13 +67,16 @@ class TripController extends Controller
         $this->authorize('view', $trip);
 
         $trip->load([
-            'collaborators',
+            'user',
+            'collaborators.user',
             'days.itineraryItems.updatedBy',
             'reservations.flightSegments',
             'reservations.lodgingStay',
             'reservations.updatedBy',
             'costs.updatedBy',
             'packingItems.updatedBy',
+            'packingItems.createdBy',
+            'packingItems.assignedTo',
             'tasks.updatedBy',
             'documents.updatedBy',
             'reminders.updatedBy',
@@ -229,6 +233,8 @@ class TripController extends Controller
             'packing_items' => $trip->packingItems->map(fn ($item) => [
                 ...$item->toArray(),
                 'last_edited_by' => $this->editorName($item),
+                'added_by' => $this->participantSummary($item->createdBy),
+                'assigned_to' => $this->participantSummary($item->assignedTo),
             ]),
             'tasks' => $trip->tasks->map(fn ($task) => [
                 ...$task->toArray(),
@@ -243,6 +249,7 @@ class TripController extends Controller
                 'last_edited_by' => $this->editorName($reminder),
             ]),
             'collaborators' => $trip->collaborators,
+            'participants' => $this->participantsList($trip),
             'import_batches' => $trip->importBatches,
             'automation_suggestions' => $trip->automationSuggestions
                 ->whereNull('accepted_at')
@@ -256,5 +263,52 @@ class TripController extends Controller
         $editor = $model->updatedBy;
 
         return $editor?->first_name !== '' ? $editor?->first_name : null;
+    }
+
+    /**
+     * @return array{id: int, name: string, first_name: string, initials: string}|null
+     */
+    private function participantSummary(?User $user): ?array
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        $firstName = $user->first_name ?: explode(' ', (string) $user->name)[0] ?? '';
+        $lastName = $user->last_name ?? null;
+        $initials = mb_strtoupper(mb_substr($firstName, 0, 1).mb_substr((string) $lastName, 0, 1));
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'first_name' => $firstName ?: $user->name,
+            'initials' => $initials !== '' ? $initials : mb_strtoupper(mb_substr($user->name, 0, 1)),
+        ];
+    }
+
+    /**
+     * @return array<int, array{id: int, name: string, first_name: string, initials: string, role: string}>
+     */
+    private function participantsList(Trip $trip): array
+    {
+        $ownerSummary = $this->participantSummary($trip->user);
+        $owner = $ownerSummary === null ? null : array_merge($ownerSummary, ['role' => 'owner']);
+
+        $collaborators = $trip->collaborators
+            ->whereNotNull('user_id')
+            ->map(function ($collaborator): ?array {
+                $summary = $this->participantSummary($collaborator->user);
+
+                return $summary === null ? null : array_merge($summary, ['role' => $collaborator->role]);
+            })
+            ->filter()
+            ->values();
+
+        return collect([$owner])
+            ->filter()
+            ->merge($collaborators)
+            ->unique('id')
+            ->values()
+            ->all();
     }
 }

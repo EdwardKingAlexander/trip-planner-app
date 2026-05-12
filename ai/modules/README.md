@@ -44,6 +44,10 @@ Use [notification-deep-links](notification-deep-links/00-master-plan.md) to make
 
 Use [packing-checkbox](packing-checkbox/00-master-plan.md) to add a single-click inline checkbox on packing items (currently users must enter edit mode and submit a form), with optimistic UI, a focused toggle endpoint, a progress header, and a "hide packed" filter. Its durable state file is `ai/state/packing-checkbox.json`.
 
+## Packing Attribution
+
+Use [packing-attribution](packing-attribution/00-master-plan.md) to attach a real "added by" and "for whom" identity to every packing item on a shared trip, send a personal notification to the adder when the assigned user packs (or unpacks) it, and surface per-assignee progress segments plus a "Mine to pack" filter. Its durable state file is `ai/state/packing-attribution.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.

@@ -1,0 +1,185 @@
+{
+    "module": "packing-attribution",
+    "status": "verified",
+    "last_updated": "2026-05-12",
+    "current_phase": {
+        "id": "complete",
+        "status": "verified",
+        "next_action": "No remaining implementation phases. Use the verification log before extending the targeted-notification pattern to other trip entities."
+    },
+    "phase_status": [
+        {
+            "id": "01-data-model-and-attribution-contract",
+            "file": "ai/modules/packing-attribution/01-data-model-and-attribution-contract.md",
+            "status": "completed"
+        },
+        {
+            "id": "02-backend-targeted-notification",
+            "file": "ai/modules/packing-attribution/02-backend-targeted-notification.md",
+            "status": "completed"
+        },
+        {
+            "id": "03-frontend-attribution-and-assignment-ui",
+            "file": "ai/modules/packing-attribution/03-frontend-attribution-and-assignment-ui.md",
+            "status": "verified"
+        },
+        {
+            "id": "04-progress-segments-and-mine-filter",
+            "file": "ai/modules/packing-attribution/04-progress-segments-and-mine-filter.md",
+            "status": "verified"
+        },
+        {
+            "id": "05-verification-and-release",
+            "file": "ai/modules/packing-attribution/05-verification-and-release.md",
+            "status": "verified"
+        }
+    ],
+    "audit_findings": [
+        {
+            "file": "app/Concerns/TracksAuthor.php",
+            "lines": "11-49",
+            "finding": "Already populates created_by_user_id and updated_by_user_id on PackingItem. 'Who added' is tracked at the data layer; only the serializer and UI need to surface it."
+        },
+        {
+            "file": "database/migrations/2026_05_04_000001_create_trip_management_tables.php",
+            "lines": "152-163",
+            "finding": "packing_items.traveler_name is a free-text string with no FK to users. New nullable assigned_to_user_id is required to support targeted notifications while keeping the free-text fallback for non-account names."
+        },
+        {
+            "file": "app/Http/Controllers/TripController.php",
+            "lines": "75,229-232",
+            "finding": "Trip serializer eager loads packingItems.updatedBy and only attaches last_edited_by. Needs to also load createdBy + assignedTo and attach added_by + assigned_to + participants."
+        },
+        {
+            "file": "app/Services/TripCollaborationEventService.php",
+            "lines": "22-83",
+            "finding": "record() always notifies all participants except the actor. There is no exclusion mechanism, so the adder cannot be removed from the generic broadcast in favor of a targeted notification."
+        },
+        {
+            "file": "app/Http/Controllers/TripPlanningController.php",
+            "lines": "106-126",
+            "finding": "togglePacked emits a single generic packing.toggled event today. Needs to (a) exclude the adder from the broadcast when adder != actor, and (b) send a targeted packing.packed_for_you / packing.unpacked_for_you to the adder."
+        },
+        {
+            "file": "app/Http/Controllers/NotificationController.php",
+            "lines": "69-87",
+            "finding": "Inbox serializer reads event_type and summary directly from the notification data, so new event types render without controller changes as long as TripChangedNotification is reused."
+        }
+    ],
+    "decisions_locked_in": [
+        "Assignee model: nullable assigned_to_user_id FK alongside the existing free-text traveler_name. Linked user takes precedence; traveler_name is the fallback for non-account packers (e.g. 'Mom', 'Kids').",
+        "Default assignee on the add form is the current user. The picker exposes every linked-account participant on the trip plus an 'Unassigned' option that re-enables traveler_name as the primary 'for' label.",
+        "Notify the adder symmetrically on both pack and unpack. Event types: packing.packed_for_you and packing.unpacked_for_you.",
+        "Reuse the existing TripChangedNotification class for the targeted send so NotificationDeepLinkResolver and the inbox UI render the new events without a parallel notification class.",
+        "Exclude the adder from the generic packing.toggled broadcast when sending the targeted notification, so the adder never receives both for the same toggle.",
+        "Adder-is-actor short-circuit: if the user packing the item is the user who added it, no targeted notification is sent.",
+        "In-scope polish: per-assignee progress segments, 'Mine to pack' filter, adder/assignee initials avatars on every row.",
+        "Out-of-scope polish (deferred): one-click reassignment from the read-only row, separate packing.reassigned activity event.",
+        "Verification plan altered on 2026-05-12: do not add pestphp/pest-plugin-browser or Playwright. Use focused Feature/Inertia payload tests plus npm run types:check, npm run lint:check, and npm run build for UI safety."
+    ],
+    "open_questions": [
+        "Resolved 2026-05-12: no separate packing.reassigned event in this module; reassignment stays under packing.updated.",
+        "Resolved 2026-05-12: migration name uses the next available implementation timestamp for add_assigned_user_to_packing_items.",
+        "Resolved 2026-05-12: participantSummary() remains on TripController because only the trip show serializer needs it in this module."
+    ],
+    "endpoint_contract": {
+        "create": {
+            "method": "POST",
+            "url": "/trips/{trip}/packing-items",
+            "name": "trips.packing-items.store",
+            "new_field": "assigned_to_user_id (nullable, must be a trip participant user id)",
+            "activity_event": "packing.created (unchanged)"
+        },
+        "update": {
+            "method": "PATCH",
+            "url": "/trips/{trip}/packing-items/{packingItem}",
+            "name": "trips.packing-items.update",
+            "new_field": "assigned_to_user_id (nullable, must be a trip participant user id)",
+            "activity_event": "packing.updated (unchanged; reassignment is folded in)"
+        },
+        "toggle_packed": {
+            "method": "PATCH",
+            "url": "/trips/{trip}/packing-items/{packingItem}/packed",
+            "name": "trips.packing-items.toggle-packed",
+            "request_body": { "is_packed": "boolean (required)" },
+            "activity_events": [
+                "packing.toggled (broadcast, excludes adder when adder != actor)",
+                "packing.packed_for_you (targeted to adder when adder != actor and is_packed=true)",
+                "packing.unpacked_for_you (targeted to adder when adder != actor and is_packed=false)"
+            ]
+        }
+    },
+    "ux_rules": {
+        "row_attribution": "compact 'added by [initials] · for [initials | traveler_name | anyone]' chip row on every packing item",
+        "mine_highlight": "rows where assigned_to_user_id === current user id show ring-1 ring-primary on the assignee chip",
+        "assignee_picker_default": "current user (with '(me)' suffix in the option label)",
+        "assignee_picker_disabled_when_not_editable": true,
+        "progress_bar": "segmented per assignee bucket; segment width proportional to bucket total; fill proportional to bucket packed-ratio; chip row beneath the bar shows '[initials] packed/total' per bucket",
+        "mine_to_pack_filter": {
+            "default": false,
+            "persistence": "localStorage per-trip",
+            "key_template": "packing-mine-only:{tripId}"
+        },
+        "filters_compose": "mine_only AND hide_packed compose; progress bar always derived from the unfiltered list"
+    },
+    "state_owners": {
+        "added_by_truth": "DB packing_items.created_by_user_id (TracksAuthor)",
+        "assigned_to_truth": "DB packing_items.assigned_to_user_id",
+        "is_packed_truth": "DB packing_items.is_packed (unchanged from packing-checkbox module)",
+        "form_state": "useForm in Trips/Show.vue (gains assigned_to_user_id field)",
+        "mine_only_filter": "ref<boolean> + localStorage key 'packing-mine-only:{tripId}' in Trips/Show.vue",
+        "hide_packed_filter": "(unchanged from packing-checkbox) ref<boolean> + localStorage key 'packing-hide-packed:{tripId}'",
+        "assignee_progress_buckets": "computed over props.trip.packing_items + props.trip.participants",
+        "current_user_id": "computed reading usePage().props.auth.user.id"
+    },
+    "verification": [
+        {
+            "command": "php artisan migrate --no-interaction",
+            "result": "passed; 2026_05_12_032746_add_assigned_user_to_packing_items applied"
+        },
+        {
+            "command": "php artisan migrate:rollback --step=1 --no-interaction",
+            "result": "passed; new assigned user migration rolled back cleanly"
+        },
+        {
+            "command": "php artisan migrate --no-interaction",
+            "result": "passed; new assigned user migration re-applied cleanly"
+        },
+        {
+            "command": "php artisan migrate:status",
+            "result": "passed; new migration shows Ran in batch 9"
+        },
+        {
+            "command": "php artisan test --compact",
+            "result": "passed; 112 tests, 520 assertions"
+        },
+        {
+            "command": "npm run lint:check",
+            "result": "passed after running npm run lint to fix import-order issues"
+        },
+        {
+            "command": "npm run types:check",
+            "result": "passed after rerun without concurrent Wayfinder generation"
+        },
+        {
+            "command": "npm run build",
+            "result": "passed; Vite production build completed and Wayfinder generated types"
+        },
+        {
+            "command": "vendor/bin/pint --dirty --format agent",
+            "result": "passed after formatting dirty PHP files"
+        },
+        {
+            "command": "php artisan wayfinder:generate --with-form --no-interaction",
+            "result": "passed; actions and routes regenerated"
+        }
+    ],
+    "handoff": {
+        "summary": "Packing attribution is implemented and verified. The feature adds assigned_to_user_id, trip participant payloads, row-level added-by/for attribution, per-assignee progress, Mine to pack filtering, and targeted packed/unpacked notifications to the original item adder.",
+        "next_agent_steps": [
+            "For a future task/reminder attribution module, reuse the same pattern: exclude the adder from the generic broadcast and send a personalized *.for_you TripChangedNotification.",
+            "If browser dependencies are later approved, add a Pest browser smoke test for the assignee picker and Mine to pack filter.",
+            "Keep one-click reassignment and a dedicated packing.reassigned activity event deferred until the row-level assignment workflow is explicitly requested."
+        ]
+    }
+}

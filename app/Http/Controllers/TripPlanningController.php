@@ -11,6 +11,7 @@ use App\Models\TripTask;
 use App\Services\TripCollaborationEventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class TripPlanningController extends Controller
 {
@@ -72,7 +73,7 @@ class TripPlanningController extends Controller
     {
         $this->authorize('update', $trip);
 
-        $item = $trip->packingItems()->create($this->validatedPacking($request));
+        $item = $trip->packingItems()->create($this->validatedPacking($request, $trip));
 
         $events->record(
             trip: $trip,
@@ -90,7 +91,7 @@ class TripPlanningController extends Controller
         $this->authorize('update', $trip);
         abort_unless($packingItem->trip_id === $trip->id, 404);
 
-        $packingItem->update($this->validatedPacking($request));
+        $packingItem->update($this->validatedPacking($request, $trip));
 
         $events->record(
             trip: $trip,
@@ -114,15 +115,38 @@ class TripPlanningController extends Controller
 
         $packingItem->update(['is_packed' => $validated['is_packed']]);
 
+        $actor = $request->user();
+        $adder = $packingItem->createdBy;
+        $excludeAdderFromBroadcast = $actor !== null && $adder !== null && $adder->id !== $actor->id;
+        $isPacked = (bool) $validated['is_packed'];
+
         $events->record(
             trip: $trip,
             eventType: 'packing.toggled',
             changedArea: 'packing',
-            summary: ($validated['is_packed'] ? 'marked packed: ' : 'marked unpacked: ').$packingItem->label,
+            summary: ($isPacked ? 'marked packed: ' : 'marked unpacked: ').$packingItem->label,
             subject: $packingItem,
+            excludeUserIds: $excludeAdderFromBroadcast ? [$adder->id] : [],
         );
 
-        return back()->with('success', $validated['is_packed'] ? 'Marked packed.' : 'Marked unpacked.');
+        if ($excludeAdderFromBroadcast) {
+            $events->notifyAdder(
+                trip: $trip,
+                adder: $adder,
+                eventType: $isPacked ? 'packing.packed_for_you' : 'packing.unpacked_for_you',
+                changedArea: 'packing',
+                summary: sprintf(
+                    '%s %s the %s you added',
+                    $actor->first_name ?: $actor->name,
+                    $isPacked ? 'packed' : 'unpacked',
+                    $packingItem->label,
+                ),
+                subject: $packingItem,
+                actor: $actor,
+            );
+        }
+
+        return back()->with('success', $isPacked ? 'Marked packed.' : 'Marked unpacked.');
     }
 
     public function destroyPacking(Trip $trip, PackingItem $packingItem, TripCollaborationEventService $events): RedirectResponse
@@ -318,16 +342,30 @@ class TripPlanningController extends Controller
         ]);
     }
 
-    private function validatedPacking(Request $request): array
+    private function validatedPacking(Request $request, Trip $trip): array
     {
         return $request->validate([
             'traveler_name' => ['nullable', 'string', 'max:120'],
+            'assigned_to_user_id' => ['nullable', 'integer', Rule::in($this->assignableUserIds($trip))],
             'category' => ['required', 'string', 'max:80'],
             'label' => ['required', 'string', 'max:160'],
             'quantity' => ['required', 'integer', 'min:1', 'max:99'],
             'is_packed' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function assignableUserIds(Trip $trip): array
+    {
+        return collect([$trip->user_id])
+            ->merge($trip->collaborators()->whereNotNull('user_id')->pluck('user_id'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function validatedTask(Request $request): array

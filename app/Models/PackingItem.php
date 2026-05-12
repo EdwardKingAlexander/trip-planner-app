@@ -10,7 +10,7 @@ class PackingItem extends Model
 {
     use TracksAuthor;
 
-    protected $fillable = ['trip_id', 'traveler_name', 'category', 'label', 'quantity', 'is_packed', 'sort_order', 'notes'];
+    protected $fillable = ['trip_id', 'traveler_name', 'assigned_to_user_id', 'category', 'label', 'quantity', 'is_packed', 'sort_order', 'notes'];
 
     protected function casts(): array
     {
@@ -20,5 +20,10 @@ class PackingItem extends Model
     public function trip(): BelongsTo
     {
         return $this->belongsTo(Trip::class);
+    }
+
+    public function assignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to_user_id');
     }
 }

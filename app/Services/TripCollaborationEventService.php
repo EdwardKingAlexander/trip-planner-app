@@ -27,6 +27,7 @@ class TripCollaborationEventService
         ?Model $subject = null,
         array $metadata = [],
         ?User $actor = null,
+        array $excludeUserIds = [],
     ): TripActivityEvent {
         $actor ??= Auth::user();
 
@@ -45,14 +46,55 @@ class TripCollaborationEventService
             ], $metadata),
         ]);
 
-        $this->notifyParticipants($trip, $event, $actor);
+        $this->notifyParticipants($trip, $event, $actor, $excludeUserIds);
 
         return $event;
     }
 
-    private function notifyParticipants(Trip $trip, TripActivityEvent $event, ?User $actor): void
+    /**
+     * @param  array<int, int>  $excludeUserIds
+     */
+    public function notifyAdder(
+        Trip $trip,
+        User $adder,
+        string $eventType,
+        string $changedArea,
+        string $summary,
+        ?Model $subject = null,
+        array $metadata = [],
+        ?User $actor = null,
+    ): TripActivityEvent {
+        $actor ??= Auth::user();
+
+        $event = TripActivityEvent::create([
+            'trip_id' => $trip->id,
+            'user_id' => $actor?->id,
+            'event_type' => $eventType,
+            'changed_area' => $changedArea,
+            'subject_type' => $subject?->getMorphClass(),
+            'subject_id' => $subject?->getKey(),
+            'summary' => $summary,
+            'metadata' => array_merge([
+                'actor_name' => $actor?->name,
+                'actor_first_name' => $actor?->first_name,
+                'trip_name' => $trip->name,
+                'targeted_recipient_id' => $adder->id,
+            ], $metadata),
+        ]);
+
+        Notification::send($adder, new TripChangedNotification($event));
+
+        return $event;
+    }
+
+    /**
+     * @param  array<int, int>  $excludeUserIds
+     */
+    private function notifyParticipants(Trip $trip, TripActivityEvent $event, ?User $actor, array $excludeUserIds = []): void
     {
-        $recipients = $this->participantsExceptActor($trip, $actor);
+        $recipients = $this->participantsExceptActor($trip, $actor)
+            ->reject(fn (User $user): bool => in_array($user->id, $excludeUserIds, true))
+            ->values();
 
         if ($recipients->isEmpty()) {
             return;
@@ -64,7 +106,7 @@ class TripCollaborationEventService
     /**
      * @return Collection<int, User>
      */
-    private function participantsExceptActor(Trip $trip, ?User $actor)
+    private function participantsExceptActor(Trip $trip, ?User $actor): Collection
     {
         $owner = $trip->user;
         $collaborators = $trip->collaborators()
