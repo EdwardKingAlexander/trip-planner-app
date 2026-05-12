@@ -46,6 +46,16 @@ function readStoredTheme(): Theme | null {
     return isTheme(storedTheme) ? storedTheme : null;
 }
 
+function renderedTheme(): Theme | null {
+    if (typeof document === 'undefined') {
+        return null;
+    }
+
+    const value = document.documentElement.dataset.theme;
+
+    return isTheme(value) ? value : null;
+}
+
 function applyTheme(value: Theme): void {
     if (typeof document === 'undefined') {
         return;
@@ -76,7 +86,7 @@ function hasAuthenticatedUser(): boolean {
 }
 
 export function initializeTheme(): void {
-    const resolvedTheme = readCookie() ?? readStoredTheme() ?? DEFAULT_THEME;
+    const resolvedTheme = renderedTheme() ?? readCookie() ?? readStoredTheme() ?? DEFAULT_THEME;
 
     theme.value = resolvedTheme;
     applyTheme(resolvedTheme);
@@ -84,7 +94,8 @@ export function initializeTheme(): void {
 
 export function useTheme(): UseThemeReturn {
     onMounted(() => {
-        const resolvedTheme = sharedTheme() ?? readStoredTheme() ?? readCookie() ?? DEFAULT_THEME;
+        const resolvedTheme =
+            sharedTheme() ?? renderedTheme() ?? readStoredTheme() ?? readCookie() ?? DEFAULT_THEME;
 
         if (theme.value !== resolvedTheme) {
             theme.value = resolvedTheme;

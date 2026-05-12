@@ -17,6 +17,17 @@ test('appearance page shares the resolved theme', function () {
         );
 });
 
+test('appearance page renders the saved theme before javascript boots', function () {
+    $user = User::factory()->create([
+        'theme' => 'sandstone',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('appearance.edit'))
+        ->assertOk()
+        ->assertSee('data-theme="sandstone"', false);
+});
+
 test('appearance page uses the theme cookie for guests before authentication', function () {
     $this->withUnencryptedCookie('theme', 'forest')
         ->get(route('login'))
