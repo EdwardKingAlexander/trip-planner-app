@@ -8,6 +8,7 @@ use App\Services\TripCollaborationEventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class TripReservationController extends Controller
 {
@@ -102,6 +103,26 @@ class TripReservationController extends Controller
             'arrival_airport' => ['nullable', 'string', 'max:20'],
             'property_name' => ['nullable', 'string', 'max:160'],
             'room_type' => ['nullable', 'string', 'max:120'],
+            'flight_details' => ['nullable', 'array'],
+            'flight_details.cabin_class' => ['nullable', 'string', Rule::in(['economy', 'premium_economy', 'business', 'first'])],
+            'flight_details.currency' => ['nullable', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
+            'flight_details.carry_on_size' => ['nullable', 'string', 'max:120'],
+            'flight_details.carry_on_weight' => ['nullable', 'string', 'max:40'],
+            'flight_details.carry_on_fee' => ['nullable', 'numeric', 'min:0', 'max:99999.99', 'decimal:0,2'],
+            'flight_details.personal_item_size' => ['nullable', 'string', 'max:120'],
+            'flight_details.personal_item_weight' => ['nullable', 'string', 'max:40'],
+            'flight_details.personal_item_fee' => ['nullable', 'numeric', 'min:0', 'max:99999.99', 'decimal:0,2'],
+            'flight_details.checked_bag_size' => ['nullable', 'string', 'max:120'],
+            'flight_details.checked_bag_weight' => ['nullable', 'string', 'max:40'],
+            'flight_details.checked_bag_fee' => ['nullable', 'numeric', 'min:0', 'max:99999.99', 'decimal:0,2'],
+            'flight_details.additional_checked_bag_fee' => ['nullable', 'numeric', 'min:0', 'max:99999.99', 'decimal:0,2'],
+            'flight_details.additional_checked_bag_allowance' => ['nullable', 'string', 'max:80'],
+            'flight_details.visa_requirement' => ['nullable', 'string', 'max:1000'],
+            'flight_details.passport_validity_rule' => ['nullable', 'string', 'max:1000'],
+            'flight_details.layover_notes' => ['nullable', 'string', 'max:1000'],
+            'flight_details.online_check_in_opens' => ['nullable', 'string', 'max:80'],
+            'flight_details.boarding_closes' => ['nullable', 'string', 'max:80'],
+            'flight_details.notes' => ['nullable', 'string', 'max:1000'],
         ]);
     }
 
@@ -114,6 +135,7 @@ class TripReservationController extends Controller
             'arrival_airport',
             'property_name',
             'room_type',
+            'flight_details',
         ])->all();
     }
 
@@ -160,5 +182,43 @@ class TripReservationController extends Controller
         if ($reservation->type !== 'lodging') {
             $reservation->lodgingStay()->delete();
         }
+
+        $flightDetails = $validated['flight_details'] ?? null;
+        $hasAnyFlightDetail = $flightDetails && collect($flightDetails)
+            ->filter(fn ($value) => $value !== null && $value !== '' && $value !== [])
+            ->isNotEmpty();
+
+        if ($reservation->type === 'flight' && $hasAnyFlightDetail) {
+            $reservation->flightDetails()->updateOrCreate([], $this->cleanFlightDetailsPayload($flightDetails));
+
+            return;
+        }
+
+        $reservation->flightDetails()->delete();
+    }
+
+    private function cleanFlightDetailsPayload(array $payload): array
+    {
+        return [
+            'cabin_class' => $payload['cabin_class'] ?? null,
+            'currency' => $payload['currency'] ?? null,
+            'carry_on_size' => $payload['carry_on_size'] ?? null,
+            'carry_on_weight' => $payload['carry_on_weight'] ?? null,
+            'carry_on_fee' => $payload['carry_on_fee'] ?? null,
+            'personal_item_size' => $payload['personal_item_size'] ?? null,
+            'personal_item_weight' => $payload['personal_item_weight'] ?? null,
+            'personal_item_fee' => $payload['personal_item_fee'] ?? null,
+            'checked_bag_size' => $payload['checked_bag_size'] ?? null,
+            'checked_bag_weight' => $payload['checked_bag_weight'] ?? null,
+            'checked_bag_fee' => $payload['checked_bag_fee'] ?? null,
+            'additional_checked_bag_fee' => $payload['additional_checked_bag_fee'] ?? null,
+            'additional_checked_bag_allowance' => $payload['additional_checked_bag_allowance'] ?? null,
+            'visa_requirement' => $payload['visa_requirement'] ?? null,
+            'passport_validity_rule' => $payload['passport_validity_rule'] ?? null,
+            'layover_notes' => $payload['layover_notes'] ?? null,
+            'online_check_in_opens' => $payload['online_check_in_opens'] ?? null,
+            'boarding_closes' => $payload['boarding_closes'] ?? null,
+            'notes' => $payload['notes'] ?? null,
+        ];
     }
 }

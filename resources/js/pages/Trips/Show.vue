@@ -90,11 +90,36 @@ type TripDocument = Record<string, any> & {
     last_edited_by?: string | null;
 };
 
+type FlightDetails = {
+    id: number | null;
+    reservation_id: number | null;
+    cabin_class: 'economy' | 'premium_economy' | 'business' | 'first' | null;
+    currency: string | null;
+    carry_on_size: string | null;
+    carry_on_weight: string | null;
+    carry_on_fee: string | null;
+    personal_item_size: string | null;
+    personal_item_weight: string | null;
+    personal_item_fee: string | null;
+    checked_bag_size: string | null;
+    checked_bag_weight: string | null;
+    checked_bag_fee: string | null;
+    additional_checked_bag_fee: string | null;
+    additional_checked_bag_allowance: string | null;
+    visa_requirement: string | null;
+    passport_validity_rule: string | null;
+    layover_notes: string | null;
+    online_check_in_opens: string | null;
+    boarding_closes: string | null;
+    notes: string | null;
+};
+
 type ReservationItem = Record<string, any> & {
     id: number;
     title: string;
     type: string;
     document_count: number;
+    flight_details: FlightDetails | null;
 };
 
 type AssigneeProgress = {
@@ -116,6 +141,7 @@ type Trip = {
     length: string;
     can_edit: boolean;
     can_share: boolean;
+    suggested_currency: string;
     activity_version?: number;
     last_event?: {
         id: number;
@@ -188,6 +214,7 @@ const fileInputEl = ref<HTMLInputElement | null>(null);
 const stagedFileErrors = ref<string[]>([]);
 const lightboxDocument = ref<TripDocument | null>(null);
 const expandedReservations = ref(new Set<number>());
+const flightDetailsExpanded = ref(new Set<number>());
 const currentUserId = computed(() => page.props.auth.user?.id ?? null);
 
 const itineraryForm = useForm({
@@ -532,6 +559,190 @@ const isEditing = (type: EditKind, id: number) => editing.value?.type === type &
 
 const toDateTimeLocal = (value: string | null) => value ? new Date(value).toISOString().slice(0, 16) : '';
 
+const flightDetailsKeys: (keyof FlightDetails)[] = [
+    'cabin_class',
+    'currency',
+    'carry_on_size',
+    'carry_on_weight',
+    'carry_on_fee',
+    'personal_item_size',
+    'personal_item_weight',
+    'personal_item_fee',
+    'checked_bag_size',
+    'checked_bag_weight',
+    'checked_bag_fee',
+    'additional_checked_bag_fee',
+    'additional_checked_bag_allowance',
+    'visa_requirement',
+    'passport_validity_rule',
+    'layover_notes',
+    'online_check_in_opens',
+    'boarding_closes',
+    'notes',
+];
+
+const blankFlightDetails = (suggestedCurrency: string): FlightDetails => ({
+    id: null,
+    reservation_id: null,
+    cabin_class: null,
+    currency: suggestedCurrency,
+    carry_on_size: null,
+    carry_on_weight: null,
+    carry_on_fee: null,
+    personal_item_size: null,
+    personal_item_weight: null,
+    personal_item_fee: null,
+    checked_bag_size: null,
+    checked_bag_weight: null,
+    checked_bag_fee: null,
+    additional_checked_bag_fee: null,
+    additional_checked_bag_allowance: null,
+    visa_requirement: null,
+    passport_validity_rule: null,
+    layover_notes: null,
+    online_check_in_opens: null,
+    boarding_closes: null,
+    notes: null,
+});
+
+const hasAnyFlightDetailsValue = (flightDetails: FlightDetails | null | undefined): boolean => {
+    if (!flightDetails) {
+        return false;
+    }
+
+    return flightDetailsKeys.some((key) => {
+        const value = flightDetails[key];
+
+        return value !== null && value !== '' && value !== undefined;
+    });
+};
+
+const filledFlightDetailsCount = (flightDetails: FlightDetails | null | undefined): number => {
+    if (!flightDetails) {
+        return 0;
+    }
+
+    return flightDetailsKeys.filter((key) => {
+        const value = flightDetails[key];
+
+        return value !== null && value !== '' && value !== undefined;
+    }).length;
+};
+
+const normalizeFlightDetailsForSubmit = (flightDetails: FlightDetails | null | undefined): Record<string, unknown> | null => {
+    if (!flightDetails) {
+        return null;
+    }
+
+    return Object.fromEntries(flightDetailsKeys.map((key) => [key, flightDetails[key] === '' ? null : flightDetails[key]]));
+};
+
+const ensureReservationFlightDetails = () => {
+    if (editData.value.type === 'flight' && !editData.value.flight_details) {
+        editData.value.flight_details = blankFlightDetails(props.trip.suggested_currency);
+    }
+};
+
+const uppercaseFlightDetailsCurrency = () => {
+    const currency = editData.value.flight_details?.currency;
+
+    editData.value.flight_details.currency = currency ? currency.toUpperCase() : null;
+};
+
+const cabinLabel = (value: string): string => ({
+    economy: 'Economy',
+    premium_economy: 'Premium Economy',
+    business: 'Business',
+    first: 'First',
+}[value] ?? value);
+
+const formatBagSummary = (label: string, size: string | null, weight: string | null): string => {
+    const dimensions = [size, weight].filter(Boolean).join(' ');
+
+    return dimensions ? `${label} ${dimensions}` : label;
+};
+
+const formatPrice = (amount: string | null, currency: string | null): string => {
+    if (!amount) {
+        return '';
+    }
+
+    return currency ? `${amount} ${currency}` : amount;
+};
+
+const flightDetailsSummary = (flightDetails: FlightDetails | null | undefined): string | null => {
+    if (!flightDetails) {
+        return null;
+    }
+
+    const parts: string[] = [];
+
+    if (flightDetails.cabin_class) {
+        parts.push(cabinLabel(flightDetails.cabin_class));
+    }
+
+    if (flightDetails.carry_on_size || flightDetails.carry_on_weight) {
+        parts.push(formatBagSummary('Carry-on', flightDetails.carry_on_size, flightDetails.carry_on_weight));
+    }
+
+    if (flightDetails.checked_bag_size || flightDetails.checked_bag_weight || flightDetails.checked_bag_fee) {
+        const checked = formatBagSummary('Checked', flightDetails.checked_bag_size, flightDetails.checked_bag_weight);
+        const fee = flightDetails.checked_bag_fee ? formatPrice(flightDetails.checked_bag_fee, flightDetails.currency) : null;
+        parts.push(fee ? `${checked} (${fee})` : checked);
+    }
+
+    return parts.length ? parts.join(' · ') : null;
+};
+
+const hasExpandableFlightDetails = (flightDetails: FlightDetails | null | undefined): boolean => {
+    if (!flightDetails) {
+        return false;
+    }
+
+    return Boolean(
+        flightDetails.personal_item_size
+        || flightDetails.personal_item_weight
+        || flightDetails.personal_item_fee
+        || flightDetails.carry_on_fee
+        || flightDetails.additional_checked_bag_fee
+        || flightDetails.additional_checked_bag_allowance
+        || flightDetails.visa_requirement
+        || flightDetails.passport_validity_rule
+        || flightDetails.layover_notes
+        || flightDetails.online_check_in_opens
+        || flightDetails.boarding_closes
+        || flightDetails.notes,
+    );
+};
+
+const hasAnyBaggageInfo = (flightDetails: FlightDetails): boolean => Boolean(
+    flightDetails.carry_on_size
+    || flightDetails.carry_on_weight
+    || flightDetails.carry_on_fee
+    || flightDetails.personal_item_size
+    || flightDetails.personal_item_weight
+    || flightDetails.personal_item_fee
+    || flightDetails.checked_bag_size
+    || flightDetails.checked_bag_weight
+    || flightDetails.checked_bag_fee
+    || flightDetails.additional_checked_bag_fee
+    || flightDetails.additional_checked_bag_allowance,
+);
+
+const toggleFlightDetails = (reservationId: number) => {
+    const next = new Set(flightDetailsExpanded.value);
+
+    if (next.has(reservationId)) {
+        next.delete(reservationId);
+    } else {
+        next.add(reservationId);
+    }
+
+    flightDetailsExpanded.value = next;
+};
+
+const isFlightDetailsExpanded = (reservationId: number): boolean => flightDetailsExpanded.value.has(reservationId);
+
 const startEdit = (type: EditKind, entry: Record<string, any>) => {
     const normalized = { ...entry };
 
@@ -551,7 +762,14 @@ const cancelEdit = () => {
 };
 
 const patchEdit = (url: string) => {
-    router.patch(url, editData.value, {
+    const payload = editing.value?.type === 'reservation'
+        ? {
+            ...editData.value,
+            flight_details: normalizeFlightDetailsForSubmit(editData.value.flight_details),
+        }
+        : editData.value;
+
+    router.patch(url, payload, {
         preserveScroll: true,
         onSuccess: cancelEdit,
     });
@@ -1048,7 +1266,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                         <CardContent class="pt-6">
                             <template v-if="isEditing('reservation', reservation.id)">
                                 <form class="grid gap-3" @submit.prevent="patchEdit(updateReservation.url({ trip: trip.id, reservation: reservation.id }))">
-                                    <select v-model="editData.type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                    <select v-model="editData.type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm" @change="ensureReservationFlightDetails">
                                         <option value="flight">Flight</option>
                                         <option value="lodging">Hotel / lodging</option>
                                         <option value="transport">Ground transport</option>
@@ -1096,6 +1314,91 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <Input class="travel-touch" v-model="editData.contact_email" placeholder="Email" />
                                     </div>
                                     <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                    <details v-if="editData.type === 'flight' && editData.flight_details" class="rounded-md border border-border p-3" :open="hasAnyFlightDetailsValue(editData.flight_details)">
+                                        <summary class="cursor-pointer text-sm font-medium">
+                                            <span class="inline-flex items-center gap-2">
+                                                <Plane class="h-4 w-4" />
+                                                Flight details
+                                                <span class="text-xs text-muted-foreground">({{ filledFlightDetailsCount(editData.flight_details) }} filled)</span>
+                                            </span>
+                                        </summary>
+                                        <div class="mt-4 grid gap-4">
+                                            <fieldset class="grid gap-2">
+                                                <legend class="text-xs font-medium uppercase text-muted-foreground">Cabin &amp; pricing</legend>
+                                                <div class="grid gap-2 min-[460px]:grid-cols-2">
+                                                    <select v-model="editData.flight_details.cabin_class" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                                        <option :value="null">Cabin class</option>
+                                                        <option value="economy">Economy</option>
+                                                        <option value="premium_economy">Premium Economy</option>
+                                                        <option value="business">Business</option>
+                                                        <option value="first">First</option>
+                                                    </select>
+                                                    <Input class="travel-touch uppercase" v-model="editData.flight_details.currency" maxlength="3" placeholder="Currency" @blur="uppercaseFlightDetailsCurrency" />
+                                                </div>
+                                            </fieldset>
+
+                                            <fieldset class="grid gap-3">
+                                                <legend class="text-xs font-medium uppercase text-muted-foreground">Baggage allowance</legend>
+                                                <div class="grid gap-2 rounded-md bg-muted/30 p-2">
+                                                    <div class="text-xs font-medium">Carry-on</div>
+                                                    <div class="grid gap-2 min-[460px]:grid-cols-3">
+                                                        <Input class="travel-touch" v-model="editData.flight_details.carry_on_size" placeholder="Size" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.carry_on_weight" placeholder="Weight" />
+                                                        <div class="relative">
+                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.carry_on_fee" type="number" step="0.01" min="0" placeholder="Fee" />
+                                                            <span v-if="editData.flight_details.currency" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{{ editData.flight_details.currency }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="grid gap-2 rounded-md bg-muted/30 p-2">
+                                                    <div class="text-xs font-medium">Personal item / extra carry</div>
+                                                    <div class="grid gap-2 min-[460px]:grid-cols-3">
+                                                        <Input class="travel-touch" v-model="editData.flight_details.personal_item_size" placeholder="Size" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.personal_item_weight" placeholder="Weight" />
+                                                        <div class="relative">
+                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.personal_item_fee" type="number" step="0.01" min="0" placeholder="Fee" />
+                                                            <span v-if="editData.flight_details.currency" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{{ editData.flight_details.currency }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="grid gap-2 rounded-md bg-muted/30 p-2">
+                                                    <div class="text-xs font-medium">Checked bag</div>
+                                                    <div class="grid gap-2 min-[460px]:grid-cols-3">
+                                                        <Input class="travel-touch" v-model="editData.flight_details.checked_bag_size" placeholder="Size" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.checked_bag_weight" placeholder="Weight" />
+                                                        <div class="relative">
+                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.checked_bag_fee" type="number" step="0.01" min="0" placeholder="Fee" />
+                                                            <span v-if="editData.flight_details.currency" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{{ editData.flight_details.currency }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="grid gap-2 min-[460px]:grid-cols-2">
+                                                    <Input class="travel-touch" v-model="editData.flight_details.additional_checked_bag_fee" type="number" step="0.01" min="0" placeholder="Extra checked bag fee" />
+                                                    <Input class="travel-touch" v-model="editData.flight_details.additional_checked_bag_allowance" placeholder="Extra checked allowance" />
+                                                </div>
+                                            </fieldset>
+
+                                            <fieldset class="grid gap-2">
+                                                <legend class="text-xs font-medium uppercase text-muted-foreground">Travel documents</legend>
+                                                <textarea v-model="editData.flight_details.visa_requirement" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Visa requirement" />
+                                                <textarea v-model="editData.flight_details.passport_validity_rule" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Passport validity rule" />
+                                            </fieldset>
+
+                                            <fieldset class="grid gap-2">
+                                                <legend class="text-xs font-medium uppercase text-muted-foreground">Connection &amp; check-in</legend>
+                                                <textarea v-model="editData.flight_details.layover_notes" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Layover / connection notes" />
+                                                <div class="grid gap-2 min-[460px]:grid-cols-2">
+                                                    <Input class="travel-touch" v-model="editData.flight_details.online_check_in_opens" maxlength="80" placeholder="Online check-in opens" />
+                                                    <Input class="travel-touch" v-model="editData.flight_details.boarding_closes" maxlength="80" placeholder="Boarding closes" />
+                                                </div>
+                                            </fieldset>
+
+                                            <fieldset class="grid gap-2">
+                                                <legend class="text-xs font-medium uppercase text-muted-foreground">Notes</legend>
+                                                <textarea v-model="editData.flight_details.notes" class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Meal preferences, frequent flyer numbers, lounge access, or other flight notes" />
+                                            </fieldset>
+                                        </div>
+                                    </details>
                                     <div class="flex gap-2">
                                         <Button size="sm" type="submit" class="travel-button-primary">Save</Button>
                                         <Button size="sm" type="button" variant="outline" class="travel-touch" @click="cancelEdit">Cancel</Button>
@@ -1112,6 +1415,71 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <div class="mt-2 text-sm">{{ formatDateTime(reservation.starts_at, reservation.starts_timezone) }} - {{ formatDateTime(reservation.ends_at, reservation.ends_timezone) }}</div>
                                         <p v-if="reservation.address" class="mt-2 text-sm text-muted-foreground dark:text-muted-foreground">{{ reservation.address }}</p>
                                         <p v-if="reservation.notes" class="mt-2 rounded-md bg-muted p-2 text-sm text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ reservation.notes }}</p>
+                                        <template v-if="reservation.flight_details">
+                                            <p v-if="flightDetailsSummary(reservation.flight_details)" class="mt-2 text-sm text-muted-foreground sm:truncate" :title="flightDetailsSummary(reservation.flight_details) ?? undefined">
+                                                <Plane class="mr-1 inline h-3.5 w-3.5 -translate-y-0.5" />
+                                                {{ flightDetailsSummary(reservation.flight_details) }}
+                                            </p>
+                                            <button v-if="hasExpandableFlightDetails(reservation.flight_details)" type="button" class="mt-1 text-xs font-medium text-primary underline underline-offset-2" @click="toggleFlightDetails(reservation.id)">
+                                                {{ isFlightDetailsExpanded(reservation.id) ? 'Hide full details' : 'Show full details' }}
+                                            </button>
+                                            <div v-if="isFlightDetailsExpanded(reservation.id)" class="mt-3 grid gap-3 rounded-md border border-border p-3 text-sm">
+                                                <div v-if="reservation.flight_details.cabin_class || reservation.flight_details.currency">
+                                                    <div class="text-xs font-medium uppercase text-muted-foreground">Cabin &amp; pricing</div>
+                                                    <div class="mt-1">
+                                                        <span v-if="reservation.flight_details.cabin_class">{{ cabinLabel(reservation.flight_details.cabin_class) }}</span>
+                                                        <span v-if="reservation.flight_details.currency" class="text-muted-foreground"> · prices in {{ reservation.flight_details.currency }}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div v-if="hasAnyBaggageInfo(reservation.flight_details)" class="space-y-2">
+                                                    <div class="text-xs font-medium uppercase text-muted-foreground">Baggage allowance</div>
+                                                    <div v-if="reservation.flight_details.carry_on_size || reservation.flight_details.carry_on_weight || reservation.flight_details.carry_on_fee">
+                                                        <div class="text-xs font-medium">Carry-on</div>
+                                                        <div class="text-muted-foreground">{{ [reservation.flight_details.carry_on_size, reservation.flight_details.carry_on_weight, formatPrice(reservation.flight_details.carry_on_fee, reservation.flight_details.currency)].filter(Boolean).join(' · ') }}</div>
+                                                    </div>
+                                                    <div v-if="reservation.flight_details.personal_item_size || reservation.flight_details.personal_item_weight || reservation.flight_details.personal_item_fee">
+                                                        <div class="text-xs font-medium">Personal item / extra carry</div>
+                                                        <div class="text-muted-foreground">{{ [reservation.flight_details.personal_item_size, reservation.flight_details.personal_item_weight, formatPrice(reservation.flight_details.personal_item_fee, reservation.flight_details.currency)].filter(Boolean).join(' · ') }}</div>
+                                                    </div>
+                                                    <div v-if="reservation.flight_details.checked_bag_size || reservation.flight_details.checked_bag_weight || reservation.flight_details.checked_bag_fee">
+                                                        <div class="text-xs font-medium">Checked bag</div>
+                                                        <div class="text-muted-foreground">{{ [reservation.flight_details.checked_bag_size, reservation.flight_details.checked_bag_weight, formatPrice(reservation.flight_details.checked_bag_fee, reservation.flight_details.currency)].filter(Boolean).join(' · ') }}</div>
+                                                    </div>
+                                                    <p v-if="reservation.flight_details.additional_checked_bag_fee || reservation.flight_details.additional_checked_bag_allowance">
+                                                        Additional checked bags:
+                                                        <template v-if="reservation.flight_details.additional_checked_bag_fee">{{ formatPrice(reservation.flight_details.additional_checked_bag_fee, reservation.flight_details.currency) }} each</template>
+                                                        <template v-if="reservation.flight_details.additional_checked_bag_allowance"> · {{ reservation.flight_details.additional_checked_bag_allowance }}</template>
+                                                    </p>
+                                                </div>
+
+                                                <div v-if="reservation.flight_details.visa_requirement || reservation.flight_details.passport_validity_rule" class="space-y-2">
+                                                    <div class="text-xs font-medium uppercase text-muted-foreground">Travel documents</div>
+                                                    <p v-if="reservation.flight_details.visa_requirement" class="rounded-md bg-amber-50 p-2 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"><strong class="font-medium">Visa:</strong> {{ reservation.flight_details.visa_requirement }}</p>
+                                                    <p v-if="reservation.flight_details.passport_validity_rule" class="rounded-md bg-amber-50 p-2 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"><strong class="font-medium">Passport:</strong> {{ reservation.flight_details.passport_validity_rule }}</p>
+                                                </div>
+
+                                                <div v-if="reservation.flight_details.layover_notes || reservation.flight_details.online_check_in_opens || reservation.flight_details.boarding_closes" class="space-y-2">
+                                                    <div class="text-xs font-medium uppercase text-muted-foreground">Connection &amp; check-in</div>
+                                                    <p v-if="reservation.flight_details.layover_notes" class="whitespace-pre-line rounded-md bg-muted p-2 text-sm text-muted-foreground">{{ reservation.flight_details.layover_notes }}</p>
+                                                    <div v-if="reservation.flight_details.online_check_in_opens || reservation.flight_details.boarding_closes" class="grid gap-2 min-[460px]:grid-cols-2">
+                                                        <div v-if="reservation.flight_details.online_check_in_opens" class="rounded-md border border-border p-2">
+                                                            <div class="text-xs font-medium uppercase text-muted-foreground">Check-in opens</div>
+                                                            <div>{{ reservation.flight_details.online_check_in_opens }}</div>
+                                                        </div>
+                                                        <div v-if="reservation.flight_details.boarding_closes" class="rounded-md border border-border p-2">
+                                                            <div class="text-xs font-medium uppercase text-muted-foreground">Boarding closes</div>
+                                                            <div>{{ reservation.flight_details.boarding_closes }}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div v-if="reservation.flight_details.notes" class="space-y-1">
+                                                    <div class="text-xs font-medium uppercase text-muted-foreground">Flight notes</div>
+                                                    <p class="rounded-md bg-muted p-2 text-muted-foreground">{{ reservation.flight_details.notes }}</p>
+                                                </div>
+                                            </div>
+                                        </template>
                                         <div class="mt-3 rounded-md border border-dashed border-border p-3">
                                             <button type="button" class="flex w-full items-center justify-between text-sm font-medium" @click="toggleReservationAttachments(reservation.id)">
                                                 <span class="flex items-center gap-2">
@@ -1177,6 +1545,7 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                                 arrival_airport: reservation.flight_segments?.[0]?.arrival_airport ?? '',
                                                 property_name: reservation.lodging_stay?.property_name ?? reservation.title,
                                                 room_type: reservation.lodging_stay?.room_type ?? '',
+                                                flight_details: reservation.flight_details ?? blankFlightDetails(trip.suggested_currency),
                                             })"
                                         >
                                             Edit

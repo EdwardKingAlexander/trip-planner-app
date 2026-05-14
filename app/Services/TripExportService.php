@@ -13,6 +13,7 @@ class TripExportService
             'days.itineraryItems',
             'reservations.flightSegments',
             'reservations.lodgingStay',
+            'reservations.flightDetails',
             'costs',
             'packingItems',
             'tasks',

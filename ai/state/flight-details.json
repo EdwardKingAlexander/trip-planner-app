@@ -1,0 +1,197 @@
+{
+    "module": "flight-details",
+    "status": "verified",
+    "last_updated": "2026-05-14",
+    "scope_amendments": [
+        "2026-05-13: User pulled layover_notes (text), online_check_in_opens (string 80), and boarding_closes (string 80) into scope as dedicated columns. They were originally listed as 'use the notes field instead' under out-of-scope. The migration, validation rules, frontend type, edit form (new 'Connection & check-in' fieldset between 'Travel documents' and 'Notes'), and read-only expanded panel section were all extended in this same planning pass."
+    ],
+    "current_phase": {
+        "id": "05-verification-and-release",
+        "status": "verified",
+        "next_action": "Flight details is implemented and verified. Future work can extend this pattern for per-segment overrides, print-specific rendering, or importer support."
+    },
+    "phase_status": [
+        {
+            "id": "01-data-model-and-contract",
+            "file": "ai/modules/flight-details/01-data-model-and-contract.md",
+            "status": "verified"
+        },
+        {
+            "id": "02-backend-controller-and-serializer",
+            "file": "ai/modules/flight-details/02-backend-controller-and-serializer.md",
+            "status": "verified"
+        },
+        {
+            "id": "03-frontend-flight-details-form",
+            "file": "ai/modules/flight-details/03-frontend-flight-details-form.md",
+            "status": "verified"
+        },
+        {
+            "id": "04-frontend-flight-details-readonly",
+            "file": "ai/modules/flight-details/04-frontend-flight-details-readonly.md",
+            "status": "verified"
+        },
+        {
+            "id": "05-verification-and-release",
+            "file": "ai/modules/flight-details/05-verification-and-release.md",
+            "status": "verified"
+        }
+    ],
+    "audit_findings": [
+        {
+            "file": "database/migrations/2026_05_04_000001_create_trip_management_tables.php",
+            "lines": "75-138",
+            "finding": "reservations + flight_segments + lodging_stays already exist. Sidecar pattern (lodging_stays one-to-one with reservations on cascadeOnDelete) is the structural template for the new flight_details table."
+        },
+        {
+            "file": "app/Models/FlightSegment.php",
+            "lines": "10-26",
+            "finding": "Holds day-of fields per leg (seat, terminal, gate, baggage_claim) but no baggage allowance, fare class, or pricing. Pre-trip planning fields belong on a new sidecar, not here."
+        },
+        {
+            "file": "app/Http/Controllers/TripReservationController.php",
+            "lines": "82-105,108-118,120-163",
+            "finding": "validatedReservation() currently accepts top-level title/airline/flight_number etc.; reservationAttributes() strips the type-specific subset; syncReservationDetails() handles flight_segments and lodging_stays via updateOrCreate. Phase 02 extends all three for flight_details."
+        },
+        {
+            "file": "app/Http/Controllers/TripController.php",
+            "lines": "73,209-229",
+            "finding": "Trip serializer eager loads reservations.flightSegments and reservations.lodgingStay and serializes them inline. Needs reservations.flightDetails added in both places, plus a top-level trip.suggested_currency."
+        },
+        {
+            "file": "app/Models/UserTravelPreference.php",
+            "lines": "10-16",
+            "finding": "default_currency column already exists on the per-user travel preference row. Becomes the first step of the suggested-currency cascade."
+        },
+        {
+            "file": "app/Models/Trip.php",
+            "lines": "1-185",
+            "finding": "No primary trip currency column. The cascade therefore reads from UserTravelPreference, then most-recent trip_costs.currency, then USD."
+        },
+        {
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "171-188,907-917",
+            "finding": "Existing reservation edit form uses a flat editData ref populated by startEdit('reservation', {...}). Phase 03 nests a flight_details object inside editData and toggles a <details> block when type === 'flight'."
+        }
+    ],
+    "decisions_locked_in": [
+        "Per-reservation granularity. One flight_details row per reservation, mirroring the lodging_stays pattern. Per-segment overrides deferred to a future module.",
+        "Single currency per flight, defaulted by cascade: UserTravelPreference.default_currency -> most-recent trip_costs.currency on this trip -> USD. Server-computed and exposed as trip.suggested_currency.",
+        "Cabin class enum: economy, premium_economy, business, first. Stored as string for forward compatibility.",
+        "International extras included: cabin class + visa requirement + passport validity rule + layover/connection notes + online check-in opens + boarding closes. Frequent flyer and meal preference deferred (sit naturally in the new notes field for now).",
+        "Free-text size + weight per bag type. No structured length/width/height + unit dropdown. Three bag types: carry-on, personal item / extra carry, checked bag (first/included). Plus per-extra-checked fee + extra-checked allowance free-text.",
+        "Lazy create / lazy delete. Row exists only when at least one field is non-null. Clearing every field deletes the row. Type switch away from 'flight' deletes the row (matches existing flight_segments / lodging_stays behavior in syncReservationDetails).",
+        "Reuse reservation.updated activity event for flight-details edits. No new event type, no new notification class.",
+        "Edit-only surface in this module. The reservation create form does not gain the flight-details section. Users open Edit on the row immediately after creation if they want to fill details on day one.",
+        "Out of scope (deferred): per-segment overrides, per-price currency, frequent flyer, meal preference, currency conversion, auto-summing fees into trip_costs, print-export rendering of flight details, importer support for the new payload.",
+        "2026-05-14 implementation answers: lazy creation is confirmed; cabin enum remains four options; User::travelPreference() already existed; migration timestamp used 2026_05_14_010902; canonical baggage naming is personal_item_*."
+    ],
+    "open_questions": [],
+    "endpoint_contract": {
+        "store": {
+            "method": "POST",
+            "url": "/trips/{trip}/reservations",
+            "name": "trips.reservations.store",
+            "change": "validatedReservation() gains nested flight_details.* rules. reservationAttributes() strips flight_details before saving the parent reservation. syncReservationDetails() handles the lazy create."
+        },
+        "update": {
+            "method": "PATCH",
+            "url": "/trips/{trip}/reservations/{reservation}",
+            "name": "trips.reservations.update",
+            "request_body": {
+                "type": "string (existing, validated to in:flight,lodging,...)",
+                "title": "string (existing)",
+                "...": "all other existing reservation fields unchanged",
+                "flight_details": "nested array of nullable fields, only honored when type === 'flight'"
+            },
+            "flight_details_fields": {
+                "cabin_class": "nullable string in:economy,premium_economy,business,first",
+                "currency": "nullable string size:3 regex:^[A-Z]{3}$",
+                "carry_on_size": "nullable string max:120",
+                "carry_on_weight": "nullable string max:40",
+                "carry_on_fee": "nullable numeric min:0 max:99999.99 (2 decimal places)",
+                "personal_item_size": "nullable string max:120",
+                "personal_item_weight": "nullable string max:40",
+                "personal_item_fee": "nullable numeric min:0 max:99999.99",
+                "checked_bag_size": "nullable string max:120",
+                "checked_bag_weight": "nullable string max:40",
+                "checked_bag_fee": "nullable numeric min:0 max:99999.99",
+                "additional_checked_bag_fee": "nullable numeric min:0 max:99999.99",
+                "additional_checked_bag_allowance": "nullable string max:80",
+                "visa_requirement": "nullable string max:1000",
+                "passport_validity_rule": "nullable string max:1000",
+                "layover_notes": "nullable string max:1000",
+                "online_check_in_opens": "nullable string max:80",
+                "boarding_closes": "nullable string max:80",
+                "notes": "nullable string max:1000"
+            },
+            "activity_event": "reservation.updated (existing event type; no new type for flight-details edits)",
+            "lazy_semantics": "row created on first save with any non-null value; updated in place on subsequent saves; deleted when every field is cleared back to null OR when reservation type changes away from 'flight'"
+        }
+    },
+    "ux_rules": {
+        "edit_form_section": "collapsible <details> block titled 'Flight details', visible only when editData.type === 'flight'; auto-expanded when at least one field has a value; subsections in order: Cabin & pricing, Baggage allowance, Travel documents, Connection & check-in, Notes",
+        "currency_input": "free-text 3-letter input; uppercases on @blur; pre-fills from trip.suggested_currency when no value present; renders as a passive suffix label inside every fee input",
+        "baggage_row_layout": "single component per bag type with size + weight + fee inputs in a 3-col grid; collapses to 1 column below 460px",
+        "additional_checked_section": "two side-by-side inputs: per-extra-checked fee + free-text extra-checked allowance",
+        "visa_passport_callouts": "amber (or theme-accented) backgrounds in the read-only expanded panel to visually distinguish travel-doc rules from generic notes",
+        "read_only_summary_line": "single line above the existing notes paragraph: 'Cabin · Carry-on size weight · Checked size weight (fee currency)'; uses truncate utility on desktop; hidden when no summary-eligible field is filled",
+        "read_only_expand_toggle": "'Show full details' link; visible only when at least one expandable-only field (personal item, additional checked, carry-on fee, visa, passport, notes) is filled",
+        "expanded_panel_empty_section_omission": "sections (Cabin & pricing, Baggage allowance, Travel documents, Connection & check-in, Notes) are skipped entirely when none of their fields have values",
+        "connection_and_checkin_layout": "layover_notes renders as a single muted paragraph with whitespace-pre-line; online_check_in_opens and boarding_closes render side-by-side as two small bordered cards on >=460px and stack on mobile; the lone card spans normally when only one of the two fields is filled",
+        "no_section_when_null": "when flight_details is null on the reservation, the card shows nothing extra compared to today"
+    },
+    "state_owners": {
+        "flight_details_truth": "DB flight_details row keyed by reservation_id (unique)",
+        "currency_default_truth": "computed server-side via TripController::suggestedCurrencyFor and exposed as trip.suggested_currency",
+        "edit_form_state": "editData ref in Trips/Show.vue; flight_details nested object holds nullable fields plus the suggested currency on first edit",
+        "read_only_expanded_state": "flightDetailsExpanded: ref<Set<number>> in Trips/Show.vue; resets per visit; not persisted",
+        "field_normalization_owner": "normalizeFlightDetailsForSubmit helper in Trips/Show.vue; converts empty strings to null before submit so lazy-delete fires correctly on the server"
+    },
+    "verification": [
+        {
+            "command": "php artisan test --compact tests/Feature/FlightDetailsTest.php",
+            "result": "passed: 17 tests, 104 assertions"
+        },
+        {
+            "command": "php artisan wayfinder:generate --with-form --no-interaction",
+            "result": "passed: generated actions and routes"
+        },
+        {
+            "command": "vendor/bin/pint --dirty --format agent",
+            "result": "passed"
+        },
+        {
+            "command": "php artisan migrate --no-interaction",
+            "result": "passed: create_flight_details_table migrated"
+        },
+        {
+            "command": "npm run types:check",
+            "result": "passed"
+        },
+        {
+            "command": "npm run lint:check",
+            "result": "passed"
+        },
+        {
+            "command": "php artisan test --compact tests/Feature/FlightDetailsTest.php tests/Feature/TripManagementTest.php tests/Feature/TripImportExportTest.php tests/Feature/TripDocumentSerializerTest.php",
+            "result": "passed: 33 tests, 216 assertions"
+        },
+        {
+            "command": "php artisan test --compact",
+            "result": "passed: 145 tests, 696 assertions"
+        },
+        {
+            "command": "npm run build",
+            "result": "passed"
+        }
+    ],
+    "handoff": {
+        "summary": "Implemented and verified. Flight details now live in the flight_details sidecar table, sync through TripReservationController, serialize through trip show/export payloads, and render in the reservation edit/read-only UI.",
+        "next_agent_steps": [
+            "For per-segment overrides, add a sister flight_segment_details table keyed to flight_segments.id or a scoped JSON override column if the payload remains small.",
+            "For print support, extend resources/js/pages/Trips/Print.vue after deciding which flight-detail fields should appear on paper.",
+            "For importer support, teach TripImportParser/commit flow to preserve the flight_details payload instead of dropping those keys."
+        ]
+    }
+}

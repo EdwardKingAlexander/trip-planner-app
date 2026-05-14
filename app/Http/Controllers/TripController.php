@@ -72,6 +72,7 @@ class TripController extends Controller
             'days.itineraryItems.updatedBy',
             'reservations.flightSegments',
             'reservations.lodgingStay',
+            'reservations.flightDetails',
             'reservations.updatedBy',
             'costs.updatedBy',
             'packingItems.updatedBy',
@@ -170,6 +171,7 @@ class TripController extends Controller
             ...$this->tripSummary($trip, $userId),
             'can_edit' => $trip->canBeEditedBy(request()->user()),
             'can_share' => $trip->user_id === $userId,
+            'suggested_currency' => $this->suggestedCurrencyFor($trip, request()->user()),
             'activity_version' => (int) ($latestEvent?->id ?? 0),
             'last_event' => $latestEvent ? [
                 'id' => $latestEvent->id,
@@ -224,6 +226,7 @@ class TripController extends Controller
                 'notes' => $reservation->notes,
                 'flight_segments' => $reservation->flightSegments,
                 'lodging_stay' => $reservation->lodgingStay,
+                'flight_details' => $reservation->flightDetails,
                 'last_edited_by' => $this->editorName($reservation),
                 'document_count' => $trip->documents->where('reservation_id', $reservation->id)->count(),
             ]),
@@ -271,6 +274,19 @@ class TripController extends Controller
         $editor = $model->updatedBy;
 
         return $editor?->first_name !== '' ? $editor?->first_name : null;
+    }
+
+    private function suggestedCurrencyFor(Trip $trip, ?User $user): string
+    {
+        $userCurrency = $user?->travelPreference()->value('default_currency');
+
+        if ($userCurrency) {
+            return $userCurrency;
+        }
+
+        $costCurrency = $trip->costs()->latest('id')->value('currency');
+
+        return $costCurrency ?: 'USD';
     }
 
     private function humanFileSize(int $bytes): string

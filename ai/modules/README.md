@@ -52,6 +52,10 @@ Use [packing-attribution](packing-attribution/00-master-plan.md) to attach a rea
 
 Use [document-uploads](document-uploads/00-master-plan.md) to turn the text-only Documents tab into a real attachment surface — multi-file PDF and image uploads with image thumbnails, PDF new-tab preview, per-reservation attachments section with auto-link, and a private file-serving endpoint gated by the trip view policy. Its durable state file is `ai/state/document-uploads.json`.
 
+## Flight Details
+
+Use [flight-details](flight-details/00-master-plan.md) to give every flight reservation an optional sidecar covering cabin class, baggage allowance + fees per bag type (carry-on, personal item, checked, additional), trip-aware currency, visa requirement, passport validity rule, layover/connection notes, online check-in opens, boarding closes, and a free-text notes block — all nullable, with lazy create/delete and a one-line read-only summary on the reservation card. Its durable state file is `ai/state/flight-details.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.
