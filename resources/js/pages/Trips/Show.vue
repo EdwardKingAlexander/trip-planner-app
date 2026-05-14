@@ -852,6 +852,14 @@ const removeStagedFile = (index: number) => {
     uploadForm.files = uploadForm.files.filter((_, currentIndex) => currentIndex !== index);
 };
 
+const removeStagedAttachment = (index: number) => {
+    attachmentForm.files = attachmentForm.files.filter((_, currentIndex) => currentIndex !== index);
+
+    if (attachmentForm.files.length === 0) {
+        attachmentForm.reservation_id = null;
+    }
+};
+
 const submitUpload = () => {
     if (uploadForm.files.length === 0) {
         return;
@@ -1512,12 +1520,26 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                                 <div v-if="(documentsByReservation.get(reservation.id) ?? []).length === 0" class="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
                                                     No files attached yet.
                                                 </div>
-                                                <div v-if="trip.can_edit" class="rounded-md bg-muted/40 p-3">
-                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple class="text-xs" @change="stageReservationAttachment(reservation.id, $event)" />
-                                                    <form v-if="attachmentForm.reservation_id === reservation.id && attachmentForm.files.length" class="mt-3 grid gap-2" @submit.prevent="submitReservationAttachment">
-                                                        <div class="text-xs text-muted-foreground">{{ attachmentForm.files.map((file) => file.name).join(', ') }}</div>
+                                                <div v-if="trip.can_edit" class="space-y-3 rounded-md bg-muted/40 p-3">
+                                                    <label :for="`reservation-attachment-input-${reservation.id}`" class="travel-touch inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-xs hover:bg-primary/90">
+                                                        <Upload class="h-4 w-4" />
+                                                        Choose files
+                                                    </label>
+                                                    <input :id="`reservation-attachment-input-${reservation.id}`" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple class="sr-only" @change="stageReservationAttachment(reservation.id, $event)" />
+                                                    <ul v-if="attachmentForm.reservation_id === reservation.id && attachmentForm.files.length" class="space-y-1">
+                                                        <li v-for="(file, index) in attachmentForm.files" :key="`${file.name}-${index}`" class="flex items-center gap-2 rounded-md bg-background px-2 py-1 text-xs">
+                                                            <span class="min-w-0 flex-1 truncate" :title="file.name">{{ file.name }}</span>
+                                                            <span class="shrink-0 text-muted-foreground">{{ formatBytes(file.size) }}</span>
+                                                            <button type="button" class="travel-touch shrink-0 text-muted-foreground hover:text-destructive" :aria-label="`Remove ${file.name}`" @click="removeStagedAttachment(index)">
+                                                                <X class="h-4 w-4" />
+                                                            </button>
+                                                        </li>
+                                                    </ul>
+                                                    <form v-if="attachmentForm.reservation_id === reservation.id && attachmentForm.files.length" class="grid gap-2" @submit.prevent="submitReservationAttachment">
                                                         <Input class="travel-touch" v-model="attachmentForm.title_prefix" placeholder="Title prefix (optional)" />
-                                                        <Button type="submit" size="sm" class="travel-button-primary" :disabled="attachmentForm.processing">Upload to reservation</Button>
+                                                        <Button type="submit" size="sm" class="travel-button-primary" :disabled="attachmentForm.processing">
+                                                            Upload {{ attachmentForm.files.length }} file{{ attachmentForm.files.length === 1 ? '' : 's' }} to reservation
+                                                        </Button>
                                                         <InputError :message="attachmentForm.errors.files" />
                                                     </form>
                                                 </div>
