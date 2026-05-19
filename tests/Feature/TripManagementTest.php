@@ -162,6 +162,31 @@ test('trip owners can add itinerary reservations packing items and tasks', funct
         ->and($trip->tasks()->where('title', 'Download boarding passes')->exists())->toBeTrue();
 });
 
+test('itinerary items cannot start before the trip start date', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::create([
+        'user_id' => $owner->id,
+        'name' => 'Seattle Weekend',
+        'destination' => 'Seattle, Washington',
+        'starts_on' => '2026-11-06',
+        'ends_on' => '2026-11-08',
+        'status' => 'planned',
+    ]);
+    $trip->syncDays();
+
+    $this->actingAs($owner)->post(route('trips.itinerary-items.store', $trip), [
+        'trip_day_id' => $trip->days()->first()->id,
+        'type' => 'activity',
+        'title' => 'Too early breakfast',
+        'starts_at' => '2026-11-05T09:00',
+        'ends_at' => '2026-11-05T10:00',
+        'timezone' => 'America/Los_Angeles',
+        'status' => 'planned',
+    ])->assertSessionHasErrors(['starts_at', 'ends_at']);
+
+    expect($trip->itineraryItems()->where('title', 'Too early breakfast')->exists())->toBeFalse();
+});
+
 test('dated tasks are exposed on the matching itinerary day', function () {
     $owner = User::factory()->create();
     $trip = Trip::create([

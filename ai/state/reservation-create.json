@@ -1,0 +1,170 @@
+{
+    "module": "reservation-create",
+    "status": "verified_programmatically",
+    "last_updated": "2026-05-19",
+    "current_phase": {
+        "id": "05-tests-and-verification",
+        "status": "completed",
+        "next_action": "Optional browser/manual pass only: verify the add and edit reservation forms on the user's real trip at desktop and mobile widths. Programmatic implementation and verification are complete."
+    },
+    "phase_status": [
+        {
+            "id": "01-audit-and-reproduction",
+            "file": "ai/modules/reservation-create/01-audit-and-reproduction.md",
+            "status": "completed"
+        },
+        {
+            "id": "02-field-level-errors-and-submit-feedback",
+            "file": "ai/modules/reservation-create/02-field-level-errors-and-submit-feedback.md",
+            "status": "completed"
+        },
+        {
+            "id": "03-timezone-picker-in-the-form",
+            "file": "ai/modules/reservation-create/03-timezone-picker-in-the-form.md",
+            "status": "completed"
+        },
+        {
+            "id": "04-validator-and-contract-hardening",
+            "file": "ai/modules/reservation-create/04-validator-and-contract-hardening.md",
+            "status": "completed"
+        },
+        {
+            "id": "05-tests-and-verification",
+            "file": "ai/modules/reservation-create/05-tests-and-verification.md",
+            "status": "completed"
+        }
+    ],
+    "reported_bug": {
+        "user_summary": "I have an issue where I cannot make another reservation.",
+        "resolved_summary": "The reservation add and edit flows now show field-level validation errors, a top-of-form summary, a toast on validation failure, and focus/scroll to the first invalid field. Freeform timezone inputs were replaced with the shared TimezonePicker and server validation now checks against the same IANA identifier list used by the UI."
+    },
+    "audit_findings": [
+        {
+            "surface": "Add reservation form",
+            "finding": "The original form rendered InputError only for title while the controller validated type, provider_name, booking_reference, status, dates, timezones, contact fields, notes, flight fields, lodging fields, and flight_details.",
+            "fix": "Every visible add-reservation field now has a matching name or data-error-target plus an InputError."
+        },
+        {
+            "surface": "Inline edit reservation form",
+            "finding": "The edit flow used router.patch and page-level errors, but the reservation edit template did not expose most server validation failures.",
+            "fix": "The edit reservation form now renders FormErrorSummary and field-level InputError messages, including nested flight_details fields."
+        },
+        {
+            "surface": "Timezone fields",
+            "finding": "Freeform timezone text inputs made shorthand values like PST or misspellings a silent 422 path.",
+            "fix": "Reservation create/edit forms now use TimezonePicker backed by a shared Inertia timezones prop sourced from DateTimeZone::listIdentifiers()."
+        },
+        {
+            "surface": "Date ordering",
+            "finding": "after_or_equal:starts_at compared wall-clock input values without applying each field's timezone.",
+            "fix": "EndsAtAfterStarts compares start and end instants with Carbon using the selected start and end timezones."
+        },
+        {
+            "surface": "Global request failures",
+            "finding": "Validation, session expiry, and network failures had weak feedback paths for the reservation workflow.",
+            "fix": "The local post and patch flows now toast on validation errors. The global Inertia flash toast initializer handles 419 httpException events and networkError events."
+        }
+    ],
+    "repro": {
+        "type": "programmatic",
+        "trip_id": "factory-created during feature tests",
+        "confirmed_paths": [
+            "Missing reservation title returns a visible validation error contract.",
+            "Invalid timezone value PST is rejected.",
+            "End instant before start instant is rejected after timezone-aware comparison.",
+            "Cross-timezone flight with valid instant order is accepted.",
+            "Viewer collaborator cannot create reservations.",
+            "Lowercase flight_details.currency is normalized to uppercase before save."
+        ],
+        "not_captured": [
+            "No live browser screenshots were captured in ai/audit/reservation-create-2026-05-18/ during this implementation pass."
+        ]
+    },
+    "decisions_locked_in": [
+        "Every reservation input that maps to a server rule gets its own InputError.",
+        "FormErrorSummary appears at the top of both add and edit reservation forms.",
+        "Failed reservation create/edit submissions call scrollToFirstError and show a toast saying: Couldn't save - check the highlighted fields.",
+        "Freeform timezone inputs are replaced by the shared TimezonePicker component.",
+        "The timezone option list is shipped through HandleInertiaRequests as timezones and cached forever.",
+        "after_or_equal:starts_at is replaced by EndsAtAfterStarts for timezone-aware instant comparison.",
+        "419 session expiry is handled globally through the Inertia httpException event.",
+        "No new database columns were added.",
+        "Lowercase flight_details.currency is normalized server-side instead of rejected."
+    ],
+    "open_questions": [
+        {
+            "question": "Where do edit-form errors land?",
+            "answer": "patchEdit uses router.patch, so errors are read from page.props.errors while editing a reservation."
+        },
+        {
+            "question": "Does the project already have toast support?",
+            "answer": "Yes. resources/js/lib/flashToast.ts uses vue-sonner and was extended for 419 and network errors."
+        },
+        {
+            "question": "Is there an existing combobox to reuse?",
+            "answer": "No reservation-specific combobox was needed. The trip-timezones stack already introduced resources/js/components/TimezonePicker.vue, which this module reuses."
+        },
+        {
+            "question": "Does ConvertEmptyStringsToNull remain enabled?",
+            "answer": "bootstrap/app.php does not remove Laravel's default ConvertEmptyStringsToNull middleware behavior."
+        }
+    ],
+    "implemented_files": [
+        "app/Http/Controllers/TripReservationController.php",
+        "app/Http/Middleware/HandleInertiaRequests.php",
+        "app/Rules/EndsAtAfterStarts.php",
+        "resources/js/components/FormErrorSummary.vue",
+        "resources/js/components/TimezonePicker.vue",
+        "resources/js/lib/flashToast.ts",
+        "resources/js/lib/scrollToFirstError.ts",
+        "resources/js/pages/Trips/Show.vue",
+        "tests/Feature/ReservationCreateErrorsTest.php",
+        "tests/Feature/ReservationCrossTimezoneTest.php",
+        "tests/Feature/FlightDetailsTest.php"
+    ],
+    "regression_watch": [
+        "The shared post() helper on Trips/Show.vue now adds onError behavior for every local form using that helper.",
+        "TimezonePicker and shared timezones prop were introduced by the trip-timezones stack; keep these modules together when reviewing or committing.",
+        "No route changes were added by reservation-create, but npm run build regenerated Wayfinder artifacts successfully."
+    ],
+    "verification": [
+        {
+            "command": "mcp search-docs: Inertia validation/errors/events, Laravel validation date rules, Laravel validation rule objects",
+            "status": "passed"
+        },
+        {
+            "command": "vendor/bin/pint --dirty --format agent",
+            "status": "passed"
+        },
+        {
+            "command": "npm run lint:check",
+            "status": "passed"
+        },
+        {
+            "command": "npm run types:check",
+            "status": "passed"
+        },
+        {
+            "command": "npm run build",
+            "status": "passed",
+            "notes": "Vite build completed and the Wayfinder plugin generated action, route, and form variants."
+        },
+        {
+            "command": "php artisan test --compact tests/Feature/ReservationCreateErrorsTest.php tests/Feature/ReservationCrossTimezoneTest.php tests/Feature/TripManagementTest.php --filter=reservation",
+            "status": "passed",
+            "notes": "14 tests, 65 assertions."
+        },
+        {
+            "command": "php artisan test --compact",
+            "status": "passed",
+            "notes": "165 tests, 781 assertions. An older FlightDetailsTest lowercase-currency expectation was updated because currency is now normalized to uppercase."
+        }
+    ],
+    "handoff": {
+        "summary": "Implemented and programmatically verified. The remaining optional gap is a live browser/manual matrix with screenshots on the user's actual trip.",
+        "next_agent_steps": [
+            "If a browser pass is requested, test add reservation and edit reservation on the real trip at desktop and mobile widths.",
+            "When committing, include the related trip-timezones stack because reservation-create reuses TimezonePicker and the shared timezone model."
+        ]
+    }
+}

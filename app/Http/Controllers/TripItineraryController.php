@@ -71,17 +71,22 @@ class TripItineraryController extends Controller
 
     private function validatedItinerary(Request $request, Trip $trip): array
     {
+        $tripStartDate = $trip->starts_on->toDateString();
+
         return $request->validate([
             'trip_day_id' => ['nullable', Rule::exists('trip_days', 'id')->where('trip_id', $trip->id)],
             'type' => ['required', 'string', 'max:40'],
             'title' => ['required', 'string', 'max:160'],
             'description' => ['nullable', 'string', 'max:2000'],
             'location_name' => ['nullable', 'string', 'max:160'],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
+            'starts_at' => ['nullable', Rule::date()->afterOrEqual($tripStartDate)],
+            'ends_at' => ['nullable', Rule::date()->afterOrEqual($tripStartDate), 'after_or_equal:starts_at'],
             'timezone' => ['required', 'timezone'],
             'is_all_day' => ['boolean'],
             'status' => ['required', 'in:idea,planned,booked,cancelled,completed'],
+        ], [
+            'starts_at.after_or_equal' => 'The itinerary start time must be on or after the trip start date.',
+            'ends_at.after_or_equal' => 'The itinerary end time must be on or after the trip start date and start time.',
         ]);
     }
 }

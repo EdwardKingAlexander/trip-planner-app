@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Reservation;
 use App\Models\Trip;
+use App\Rules\EndsAtAfterStarts;
 use App\Services\TripCollaborationEventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -82,6 +83,15 @@ class TripReservationController extends Controller
 
     private function validatedReservation(Request $request): array
     {
+        $flightDetails = $request->input('flight_details');
+
+        if (is_array($flightDetails) && isset($flightDetails['currency'])) {
+            $flightDetails['currency'] = mb_strtoupper((string) $flightDetails['currency']);
+            $request->merge(['flight_details' => $flightDetails]);
+        }
+
+        $timezones = \DateTimeZone::listIdentifiers();
+
         return $request->validate([
             'type' => ['required', 'string', 'max:40'],
             'title' => ['required', 'string', 'max:160'],
@@ -89,9 +99,17 @@ class TripReservationController extends Controller
             'booking_reference' => ['nullable', 'string', 'max:120'],
             'status' => ['required', 'in:researching,reserved,confirmed,checked_in,cancelled,completed'],
             'starts_at' => ['nullable', 'date'],
-            'starts_timezone' => ['required', 'timezone'],
-            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
-            'ends_timezone' => ['required', 'timezone'],
+            'starts_timezone' => ['required', Rule::in($timezones)],
+            'ends_at' => [
+                'nullable',
+                'date',
+                new EndsAtAfterStarts(
+                    $request->input('starts_at'),
+                    $request->input('starts_timezone'),
+                    $request->input('ends_timezone'),
+                ),
+            ],
+            'ends_timezone' => ['required', Rule::in($timezones)],
             'location_name' => ['nullable', 'string', 'max:160'],
             'address' => ['nullable', 'string', 'max:240'],
             'contact_phone' => ['nullable', 'string', 'max:80'],
@@ -105,7 +123,7 @@ class TripReservationController extends Controller
             'room_type' => ['nullable', 'string', 'max:120'],
             'flight_details' => ['nullable', 'array'],
             'flight_details.cabin_class' => ['nullable', 'string', Rule::in(['economy', 'premium_economy', 'business', 'first'])],
-            'flight_details.currency' => ['nullable', 'string', 'size:3', 'regex:/^[A-Z]{3}$/'],
+            'flight_details.currency' => ['nullable', 'string', 'size:3'],
             'flight_details.carry_on_size' => ['nullable', 'string', 'max:120'],
             'flight_details.carry_on_weight' => ['nullable', 'string', 'max:40'],
             'flight_details.carry_on_fee' => ['nullable', 'numeric', 'min:0', 'max:99999.99', 'decimal:0,2'],

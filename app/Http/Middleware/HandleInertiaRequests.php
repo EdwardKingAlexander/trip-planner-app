@@ -3,8 +3,10 @@
 namespace App\Http\Middleware;
 
 use App\Enums\Theme;
+use App\Support\TimezoneLookup;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -48,6 +50,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'theme' => $this->theme($request),
+            'timezones' => fn () => Cache::rememberForever('inertia.timezones', fn (): array => TimezoneLookup::identifiers()),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'notifications' => fn () => $this->notificationsPayload($request),
         ];

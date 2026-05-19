@@ -42,6 +42,10 @@ class TripImportController extends Controller
 
         DB::transaction(function () use ($trip, $importBatch) {
             foreach ($importBatch->parsed_payload['items'] ?? [] as $item) {
+                if ($trip->destination_timezone === null && isset($item['destination_timezone'])) {
+                    $trip->forceFill(['destination_timezone' => $item['destination_timezone']])->save();
+                }
+
                 if (($item['type'] ?? null) === 'reservation') {
                     $duplicate = $trip->reservations()
                         ->where('title', $item['title'])

@@ -13,4 +13,19 @@ export function initializeFlashToast(): void {
 
         toast[data.type](data.message);
     });
+
+    router.on('httpException', (event) => {
+        const response = (event as CustomEvent).detail?.response;
+
+        if (response?.status !== 419) {
+            return;
+        }
+
+        toast.error('Your session expired - refresh and try again.', { duration: 8000 });
+        event.preventDefault();
+    });
+
+    router.on('networkError', () => {
+        toast.error("Couldn't save - check your connection.");
+    });
 }

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Trip;
 use App\Models\User;
+use App\Rules\TimezoneRule;
 use App\Services\TripCollaborationEventService;
+use App\Support\TimezoneLookup;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +37,8 @@ class TripController extends Controller
 
         return Inertia::render('Trips/Index', [
             'trips' => $trips,
+            'timezones' => TimezoneLookup::identifiers(),
+            'homeTimezone' => $user->travelPreference?->home_timezone ?? config('app.timezone'),
             'filters' => [
                 'search' => $search,
                 'status' => $status,
@@ -51,6 +55,8 @@ class TripController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $this->validateTrip($request);
+        $validated['destination_timezone'] ??= TimezoneLookup::guessDestinationTimezone($validated['destination']);
+        $validated['home_timezone'] ??= $request->user()->travelPreference?->home_timezone;
 
         $trip = DB::transaction(function () use ($request, $validated) {
             $trip = $request->user()->trips()->create($validated);
@@ -87,6 +93,7 @@ class TripController extends Controller
 
         return Inertia::render('Trips/Show', [
             'trip' => $this->tripDetail($trip, $request->user()->id),
+            'timezones' => TimezoneLookup::identifiers(),
         ]);
     }
 
@@ -96,6 +103,8 @@ class TripController extends Controller
 
         DB::transaction(function () use ($request, $trip) {
             $validated = $this->validateTrip($request);
+            $validated['destination_timezone'] ??= $trip->destination_timezone
+                ?? TimezoneLookup::guessDestinationTimezone($validated['destination']);
             $trip->update($validated);
             $trip->syncDays($validated['starts_on'], $validated['ends_on']);
         });
@@ -130,6 +139,8 @@ class TripController extends Controller
             'status' => ['required', 'in:draft,planned,active,completed,archived'],
             'summary' => ['nullable', 'string', 'max:2000'],
             'cover_theme' => ['nullable', 'string', 'max:40'],
+            'destination_timezone' => ['nullable', 'string', new TimezoneRule],
+            'home_timezone' => ['nullable', 'string', new TimezoneRule],
         ]);
     }
 
@@ -139,6 +150,11 @@ class TripController extends Controller
             'id' => $trip->id,
             'name' => $trip->name,
             'destination' => $trip->destination,
+            'destination_timezone' => $trip->destination_timezone,
+            'home_timezone' => $trip->home_timezone,
+            'effective_destination_timezone' => $trip->effectiveDestinationTimezone(),
+            'effective_home_timezone' => $trip->effectiveHomeTimezone(),
+            'timezone_guess' => TimezoneLookup::guessDestinationTimezone($trip->destination),
             'starts_on' => $trip->starts_on->toDateString(),
             'ends_on' => $trip->ends_on->toDateString(),
             'status' => $trip->status,
@@ -186,6 +202,9 @@ class TripController extends Controller
                 'id' => $day->id,
                 'date' => $day->date->toDateString(),
                 'title' => $day->title,
+                'kind' => $day->kind,
+                'is_day_one_anchor' => $day->is_day_one_anchor,
+                'label' => $trip->dayLabelFor($day),
                 'notes' => $day->notes,
                 'items' => $day->itineraryItems->map(fn ($item) => [
                     'id' => $item->id,

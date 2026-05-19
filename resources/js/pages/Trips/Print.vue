@@ -2,18 +2,11 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { CalendarDays, FileText, Luggage, Plane, Printer } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { formatTripDate, formatTripDateTime, timezoneLabel } from '@/lib/dates';
 
 type Trip = Record<string, any>;
 
 defineProps<{ trip: Trip }>();
-
-const formatDate = (value: string | null) => value
-    ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
-    : 'Flexible';
-
-const formatDateTime = (value: string | null) => value
-    ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value))
-    : 'Time TBD';
 
 const printPage = () => {
     window.print();
@@ -29,7 +22,8 @@ const printPage = () => {
                 <div>
                     <Link href="/trips" class="print:hidden text-sm font-medium text-[#1b6b6f]">Back to trips</Link>
                     <h1 class="mt-3 text-4xl font-semibold">{{ trip.name }}</h1>
-                    <p class="mt-2 text-[#655c50]">{{ trip.destination }} · {{ formatDate(trip.starts_on) }} - {{ formatDate(trip.ends_on) }}</p>
+                    <p class="mt-2 text-[#655c50]">{{ trip.destination }} · {{ formatTripDate(trip.starts_on, trip.effective_destination_timezone) }} - {{ formatTripDate(trip.ends_on, trip.effective_destination_timezone) }}</p>
+                    <p class="mt-1 text-xs text-[#655c50]">in {{ trip.effective_destination_timezone }} time ({{ timezoneLabel(trip.effective_destination_timezone) }})</p>
                     <p v-if="trip.summary" class="mt-4 max-w-3xl text-sm leading-6 text-[#655c50]">{{ trip.summary }}</p>
                 </div>
                 <Button class="print:hidden bg-[#1b6b6f] hover:bg-[#155356]" @click="printPage">
@@ -64,10 +58,10 @@ const printPage = () => {
             <section class="mt-8 space-y-5">
                 <h2 class="text-xl font-semibold">Itinerary</h2>
                 <div v-for="day in trip.days" :key="day.id" class="break-inside-avoid rounded-md border border-[#e2d7c6] p-4">
-                    <h3 class="font-semibold">{{ day.title }} · {{ formatDate(day.date) }}</h3>
+                    <h3 class="font-semibold">{{ day.label }} · {{ formatTripDate(day.date, trip.effective_destination_timezone) }}</h3>
                     <div class="mt-3 space-y-2">
                         <div v-for="item in day.itinerary_items" :key="item.id" class="grid grid-cols-[8rem_1fr] gap-3 text-sm">
-                            <div class="text-[#8a5b26]">{{ formatDateTime(item.starts_at) }}</div>
+                            <div class="text-[#8a5b26]">{{ formatTripDateTime(item.starts_at, item.timezone) }}</div>
                             <div>
                                 <div class="font-medium">{{ item.title }}</div>
                                 <div class="text-[#655c50]">{{ item.location_name || item.type }}</div>
@@ -84,7 +78,7 @@ const printPage = () => {
                     <div v-for="reservation in trip.reservations" :key="reservation.id" class="break-inside-avoid rounded-md border border-[#e2d7c6] p-4 text-sm">
                         <div class="font-semibold">{{ reservation.title }}</div>
                         <div class="text-[#655c50]">{{ reservation.provider_name || reservation.type }} · {{ reservation.booking_reference || 'No confirmation' }}</div>
-                        <div class="mt-2">{{ formatDateTime(reservation.starts_at) }} - {{ formatDateTime(reservation.ends_at) }}</div>
+                        <div class="mt-2">{{ formatTripDateTime(reservation.starts_at, reservation.starts_timezone) }} - {{ formatTripDateTime(reservation.ends_at, reservation.ends_timezone) }}</div>
                     </div>
                 </div>
                 <div class="space-y-3">

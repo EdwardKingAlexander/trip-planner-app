@@ -26,7 +26,10 @@ import {
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { nextTick, watch } from 'vue';
+import { toast } from 'vue-sonner';
+import FormErrorSummary from '@/components/FormErrorSummary.vue';
 import InputError from '@/components/InputError.vue';
+import TimezonePicker from '@/components/TimezonePicker.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -34,6 +37,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { useTripRealtime } from '@/composables/useTripRealtime';
+import { formatTripDate, formatTripDateTime, timezoneLabel } from '@/lib/dates';
+import { scrollToFirstError } from '@/lib/scrollToFirstError';
+import { update as updateTrip } from '@/routes/trips';
 import { destroy as destroyCost, store as storeCost, update as updateCost } from '@/routes/trips/costs';
 import { destroy as destroyDocument, store as storeDocument, update as updateDocument, upload as uploadDocument } from '@/routes/trips/documents';
 import { destroy as destroyItineraryItem, store as storeItineraryItem, update as updateItineraryItem } from '@/routes/trips/itinerary-items';
@@ -134,10 +140,16 @@ type Trip = {
     id: number;
     name: string;
     destination: string;
+    destination_timezone: string | null;
+    home_timezone: string | null;
+    effective_destination_timezone: string;
+    effective_home_timezone: string;
+    timezone_guess: string | null;
     starts_on: string;
     ends_on: string;
     status: string;
     summary: string | null;
+    cover_theme: string;
     length: string;
     can_edit: boolean;
     can_share: boolean;
@@ -156,6 +168,9 @@ type Trip = {
         id: number;
         date: string;
         title: string | null;
+        kind: string;
+        is_day_one_anchor: boolean;
+        label: string;
         items: Array<{
             id: number;
             type: string;
@@ -183,7 +198,7 @@ type Trip = {
     automation_suggestions: Array<Record<string, any>>;
 };
 
-const props = defineProps<{ trip: Trip }>();
+const props = defineProps<{ trip: Trip; timezones: string[] }>();
 const page = usePage();
 
 defineOptions({
@@ -199,9 +214,12 @@ useTripRealtime();
 
 const activePanel = ref('itinerary');
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const defaultReservationTimezone = computed(() => props.trip.effective_destination_timezone ?? props.trip.effective_home_timezone ?? timezone);
 type EditKind = 'itinerary' | 'reservation' | 'cost' | 'packing' | 'task' | 'document' | 'reminder';
 const editing = ref<{ type: EditKind; id: number } | null>(null);
 const editData = ref<Record<string, any>>({});
+const reservationTimezonesLinked = ref(true);
+const editReservationTimezonesLinked = ref(true);
 const togglingPackingIds = ref(new Set<number>());
 const togglingTaskIds = ref(new Set<number>());
 const packingRowErrors = ref<Record<number, string>>({});
@@ -237,9 +255,9 @@ const reservationForm = useForm({
     booking_reference: '',
     status: 'reserved',
     starts_at: '',
-    starts_timezone: timezone,
+    starts_timezone: defaultReservationTimezone.value,
     ends_at: '',
-    ends_timezone: timezone,
+    ends_timezone: defaultReservationTimezone.value,
     location_name: '',
     address: '',
     contact_phone: '',
@@ -321,6 +339,18 @@ const importForm = useForm({
     raw_text: '',
 });
 
+const tripForm = useForm({
+    name: props.trip.name,
+    destination: props.trip.destination,
+    destination_timezone: props.trip.destination_timezone ?? props.trip.timezone_guess,
+    home_timezone: props.trip.home_timezone ?? props.trip.effective_home_timezone,
+    starts_on: props.trip.starts_on,
+    ends_on: props.trip.ends_on,
+    status: props.trip.status,
+    summary: props.trip.summary ?? '',
+    cover_theme: props.trip.cover_theme,
+});
+
 const panels = [
     { id: 'itinerary', label: 'Itinerary', icon: CalendarClock },
     { id: 'reservations', label: 'Reservations', icon: Plane },
@@ -331,6 +361,7 @@ const panels = [
     { id: 'reminders', label: 'Reminders', icon: Bell },
     { id: 'imports', label: 'Imports', icon: Upload },
     { id: 'sharing', label: 'Sharing', icon: Share2 },
+    { id: 'details', label: 'Details', icon: StickyNote },
 ];
 
 function travelerInitials(value?: string | null): string {
@@ -511,6 +542,14 @@ const plannedTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum +
 const actualTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + Number(cost.actual_amount ?? 0), 0));
 const completedTasks = computed(() => props.trip.tasks.filter((task) => task.completed_at).length);
 const isShared = computed(() => (props.trip.collaborators?.length ?? 0) > 0);
+const itineraryDateTimeMin = computed(() => `${props.trip.starts_on}T00:00`);
+const editErrors = computed<Record<string, string>>(() => {
+    if (!editing.value) {
+        return {};
+    }
+
+    return page.props.errors as Record<string, string>;
+});
 const documentsByReservation = computed(() => {
     const map = new Map<number, TripDocument[]>();
 
@@ -552,6 +591,10 @@ const post = (form: ReturnType<typeof useForm>, url: string, resetFields?: strin
     form.post(url, {
         preserveScroll: true,
         onSuccess: () => resetFields ? form.reset(...resetFields) : form.reset(),
+        onError: (errors) => {
+            scrollToFirstError(errors);
+            toast.error("Couldn't save - check the highlighted fields.");
+        },
     });
 };
 
@@ -754,6 +797,9 @@ const startEdit = (type: EditKind, entry: Record<string, any>) => {
 
     editing.value = { type, id: entry.id };
     editData.value = normalized;
+    editReservationTimezonesLinked.value = type === 'reservation'
+        ? normalized.starts_timezone === normalized.ends_timezone
+        : true;
 };
 
 const cancelEdit = () => {
@@ -772,8 +818,38 @@ const patchEdit = (url: string) => {
     router.patch(url, payload, {
         preserveScroll: true,
         onSuccess: cancelEdit,
+        onError: (errors) => {
+            scrollToFirstError(errors);
+            toast.error("Couldn't save - check the highlighted fields.");
+        },
     });
 };
+
+const editError = (field: string): string | undefined => editErrors.value[field];
+
+watch(() => reservationForm.starts_timezone, (value) => {
+    if (reservationTimezonesLinked.value) {
+        reservationForm.ends_timezone = value;
+    }
+});
+
+watch(reservationTimezonesLinked, (linked) => {
+    if (linked) {
+        reservationForm.ends_timezone = reservationForm.starts_timezone;
+    }
+});
+
+watch(() => editData.value.starts_timezone, (value) => {
+    if (editing.value?.type === 'reservation' && editReservationTimezonesLinked.value) {
+        editData.value.ends_timezone = value;
+    }
+});
+
+watch(editReservationTimezonesLinked, (linked) => {
+    if (linked && editing.value?.type === 'reservation') {
+        editData.value.ends_timezone = editData.value.starts_timezone;
+    }
+});
 
 const destroyEntry = (url: string, label: string) => {
     if (!window.confirm(`Delete ${label}?`)) {
@@ -1041,26 +1117,25 @@ const simplePost = (url: string) => {
     router.post(url, {}, { preserveScroll: true });
 };
 
-const formatDate = (value: string | null) => value
-    ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
-    : 'Flexible';
+const effectiveDestinationTimezone = computed(() => props.trip.effective_destination_timezone || 'UTC');
+const effectiveHomeTimezone = computed(() => props.trip.effective_home_timezone || 'UTC');
+const showTimezoneContext = computed(() => effectiveDestinationTimezone.value !== effectiveHomeTimezone.value);
+const destinationTimezoneMissing = computed(() => props.trip.destination_timezone === null && props.trip.can_edit);
 
-const formatDateTime = (value: string | null, timeZone?: string) => value
-    ? new Intl.DateTimeFormat(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        timeZone: timeZone || undefined,
-    }).format(new Date(value))
-    : 'Time TBD';
+const formatDate = (value: string | null) => formatTripDate(value, effectiveDestinationTimezone.value);
+const formatDateTime = (value: string | null, timeZone?: string | null) => formatTripDateTime(value, timeZone);
+
+const submitTripDetails = () => {
+    tripForm.patch(updateTrip.url(props.trip.id), { preserveScroll: true });
+};
 </script>
 
 <template>
-    <Head :title="trip.name" />
+    <div>
+        <Head :title="trip.name" />
 
-    <div class="travel-page">
-        <div class="travel-container">
+        <div class="travel-page">
+            <div class="travel-container">
             <header class="travel-hero">
                 <div class="travel-stripe" />
                 <div class="grid gap-6 p-6 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -1069,6 +1144,12 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                         <h1 class="mt-3 text-3xl font-semibold sm:text-5xl">{{ trip.name }}</h1>
                         <p class="travel-muted mt-2 text-sm">
                             {{ trip.destination }} · {{ formatDate(trip.starts_on) }} - {{ formatDate(trip.ends_on) }} · {{ trip.length }}
+                        </p>
+                        <p class="travel-muted mt-1 text-xs">
+                            in {{ effectiveDestinationTimezone }} time ({{ timezoneLabel(effectiveDestinationTimezone) }})
+                            <template v-if="showTimezoneContext">
+                                · home time {{ effectiveHomeTimezone }} ({{ timezoneLabel(effectiveHomeTimezone) }})
+                            </template>
                         </p>
                         <p v-if="trip.summary" class="travel-muted mt-4 max-w-3xl text-sm leading-6">{{ trip.summary }}</p>
                     </div>
@@ -1120,11 +1201,23 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                 <AlertDescription>That item is no longer available.</AlertDescription>
             </Alert>
 
+            <Alert v-if="destinationTimezoneMissing">
+                <AlertDescription class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <span>Set the timezone for {{ trip.destination }} so trip days and calendar dates stay accurate.</span>
+                    <Button type="button" size="sm" variant="outline" class="travel-touch" @click="activePanel = 'details'">Set timezone</Button>
+                </AlertDescription>
+            </Alert>
+
             <section v-if="activePanel === 'itinerary'" class="grid gap-4 lg:grid-cols-[1fr_22rem]">
                 <div class="space-y-4">
                     <Card v-for="day in trip.days" :key="day.id" class="travel-panel">
                         <CardHeader>
-                            <CardTitle class="text-base">{{ day.title }} · {{ formatDate(day.date) }}</CardTitle>
+                            <CardTitle class="text-base">
+                                <span>
+                                    <span :class="day.kind?.startsWith('travel') ? 'text-muted-foreground' : 'text-foreground'">{{ day.label }}</span>
+                                    <span class="text-muted-foreground"> · {{ formatDate(day.date) }}</span>
+                                </span>
+                            </CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-3">
                             <div v-if="day.items.length || day.tasks.length" class="space-y-2">
@@ -1133,13 +1226,19 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <form class="grid gap-3" @submit.prevent="patchEdit(updateItineraryItem.url({ trip: trip.id, itineraryItem: item.id }))">
                                             <select v-model="editData.trip_day_id" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
                                                 <option :value="null">Unscheduled idea</option>
-                                                <option v-for="optionDay in trip.days" :key="optionDay.id" :value="optionDay.id">{{ optionDay.title }} · {{ optionDay.date }}</option>
+                                                <option v-for="optionDay in trip.days" :key="optionDay.id" :value="optionDay.id">{{ optionDay.label }} · {{ optionDay.date }}</option>
                                             </select>
                                             <Input class="travel-touch" v-model="editData.title" placeholder="Title" />
                                             <Input class="travel-touch" v-model="editData.location_name" placeholder="Location" />
                                             <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                                <Input class="travel-touch" v-model="editData.starts_at" type="datetime-local" />
-                                                <Input class="travel-touch" v-model="editData.ends_at" type="datetime-local" />
+                                                <div>
+                                                    <Input class="travel-touch" v-model="editData.starts_at" type="datetime-local" :min="itineraryDateTimeMin" />
+                                                    <InputError :message="editError('starts_at')" />
+                                                </div>
+                                                <div>
+                                                    <Input class="travel-touch" v-model="editData.ends_at" type="datetime-local" :min="itineraryDateTimeMin" />
+                                                    <InputError :message="editError('ends_at')" />
+                                                </div>
                                             </div>
                                             <div class="grid gap-3 min-[460px]:grid-cols-2">
                                                 <Input class="travel-touch" v-model="editData.timezone" placeholder="Timezone" />
@@ -1250,8 +1349,14 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                             <InputError :message="itineraryForm.errors.title" />
                             <Input class="travel-touch" v-model="itineraryForm.location_name" placeholder="Location" />
                             <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                <Input class="travel-touch" v-model="itineraryForm.starts_at" type="datetime-local" />
-                                <Input class="travel-touch" v-model="itineraryForm.ends_at" type="datetime-local" />
+                                <div>
+                                    <Input class="travel-touch" v-model="itineraryForm.starts_at" type="datetime-local" :min="itineraryDateTimeMin" />
+                                    <InputError :message="itineraryForm.errors.starts_at" />
+                                </div>
+                                <div>
+                                    <Input class="travel-touch" v-model="itineraryForm.ends_at" type="datetime-local" :min="itineraryDateTimeMin" />
+                                    <InputError :message="itineraryForm.errors.ends_at" />
+                                </div>
                             </div>
                             <Input class="travel-touch" v-model="itineraryForm.timezone" placeholder="Timezone" />
                             <select v-model="itineraryForm.type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
@@ -1274,7 +1379,8 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                         <CardContent class="pt-6">
                             <template v-if="isEditing('reservation', reservation.id)">
                                 <form class="grid gap-3" @submit.prevent="patchEdit(updateReservation.url({ trip: trip.id, reservation: reservation.id }))">
-                                    <select v-model="editData.type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm" @change="ensureReservationFlightDetails">
+                                    <FormErrorSummary :errors="editErrors" />
+                                    <select v-model="editData.type" name="type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm" @change="ensureReservationFlightDetails">
                                         <option value="flight">Flight</option>
                                         <option value="lodging">Hotel / lodging</option>
                                         <option value="transport">Ground transport</option>
@@ -1282,18 +1388,39 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <option value="dining">Dining</option>
                                         <option value="custom">Custom</option>
                                     </select>
-                                    <Input class="travel-touch" v-model="editData.title" placeholder="Reservation title" />
-                                    <Input class="travel-touch" v-model="editData.provider_name" placeholder="Provider" />
-                                    <Input class="travel-touch" v-model="editData.booking_reference" placeholder="Confirmation number" />
+                                    <InputError :message="editError('type')" />
+                                    <Input class="travel-touch" v-model="editData.title" name="title" placeholder="Reservation title" />
+                                    <InputError :message="editError('title')" />
+                                    <Input class="travel-touch" v-model="editData.provider_name" name="provider_name" placeholder="Provider" />
+                                    <InputError :message="editError('provider_name')" />
+                                    <Input class="travel-touch" v-model="editData.booking_reference" name="booking_reference" placeholder="Confirmation number" />
+                                    <InputError :message="editError('booking_reference')" />
                                     <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                        <Input class="travel-touch" v-model="editData.starts_at" type="datetime-local" />
-                                        <Input class="travel-touch" v-model="editData.ends_at" type="datetime-local" />
+                                        <div>
+                                            <Input class="travel-touch" v-model="editData.starts_at" name="starts_at" type="datetime-local" />
+                                            <InputError :message="editError('starts_at')" />
+                                        </div>
+                                        <div>
+                                            <Input class="travel-touch" v-model="editData.ends_at" name="ends_at" type="datetime-local" />
+                                            <InputError :message="editError('ends_at')" />
+                                        </div>
                                     </div>
                                     <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                        <Input class="travel-touch" v-model="editData.starts_timezone" placeholder="Start timezone" />
-                                        <Input class="travel-touch" v-model="editData.ends_timezone" placeholder="End timezone" />
+                                        <div>
+                                            <TimezonePicker v-model="editData.starts_timezone" :timezones="timezones" label="Start timezone" error-target="starts_timezone" placeholder="Start timezone" />
+                                            <InputError :message="editError('starts_timezone')" />
+                                        </div>
+                                        <div>
+                                            <TimezonePicker v-if="!editReservationTimezonesLinked" v-model="editData.ends_timezone" :timezones="timezones" label="End timezone" error-target="ends_timezone" placeholder="End timezone" />
+                                            <div v-else class="travel-touch flex items-center rounded-md border border-input px-3 text-sm text-muted-foreground" data-error-target="ends_timezone">Same as start: {{ editData.starts_timezone }}</div>
+                                            <InputError :message="editError('ends_timezone')" />
+                                        </div>
                                     </div>
-                                    <select v-model="editData.status" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                    <label class="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                                        <input v-model="editReservationTimezonesLinked" type="checkbox" class="rounded border-input" />
+                                        Same end timezone as start
+                                    </label>
+                                    <select v-model="editData.status" name="status" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
                                         <option value="researching">Researching</option>
                                         <option value="reserved">Reserved</option>
                                         <option value="confirmed">Confirmed</option>
@@ -1301,27 +1428,51 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                         <option value="cancelled">Cancelled</option>
                                         <option value="completed">Completed</option>
                                     </select>
+                                    <InputError :message="editError('status')" />
                                     <template v-if="editData.type === 'flight'">
                                         <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                            <Input class="travel-touch" v-model="editData.airline" placeholder="Airline" />
-                                            <Input class="travel-touch" v-model="editData.flight_number" placeholder="Flight #" />
+                                            <div>
+                                                <Input class="travel-touch" v-model="editData.airline" name="airline" placeholder="Airline" />
+                                                <InputError :message="editError('airline')" />
+                                            </div>
+                                            <div>
+                                                <Input class="travel-touch" v-model="editData.flight_number" name="flight_number" placeholder="Flight #" />
+                                                <InputError :message="editError('flight_number')" />
+                                            </div>
                                         </div>
                                         <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                            <Input class="travel-touch" v-model="editData.departure_airport" placeholder="From airport" />
-                                            <Input class="travel-touch" v-model="editData.arrival_airport" placeholder="To airport" />
+                                            <div>
+                                                <Input class="travel-touch" v-model="editData.departure_airport" name="departure_airport" placeholder="From airport" />
+                                                <InputError :message="editError('departure_airport')" />
+                                            </div>
+                                            <div>
+                                                <Input class="travel-touch" v-model="editData.arrival_airport" name="arrival_airport" placeholder="To airport" />
+                                                <InputError :message="editError('arrival_airport')" />
+                                            </div>
                                         </div>
                                     </template>
                                     <template v-if="editData.type === 'lodging'">
-                                        <Input class="travel-touch" v-model="editData.property_name" placeholder="Property name" />
-                                        <Input class="travel-touch" v-model="editData.room_type" placeholder="Room type" />
+                                        <Input class="travel-touch" v-model="editData.property_name" name="property_name" placeholder="Property name" />
+                                        <InputError :message="editError('property_name')" />
+                                        <Input class="travel-touch" v-model="editData.room_type" name="room_type" placeholder="Room type" />
+                                        <InputError :message="editError('room_type')" />
                                     </template>
-                                    <Input class="travel-touch" v-model="editData.location_name" placeholder="Location" />
-                                    <Input class="travel-touch" v-model="editData.address" placeholder="Address" />
+                                    <Input class="travel-touch" v-model="editData.location_name" name="location_name" placeholder="Location" />
+                                    <InputError :message="editError('location_name')" />
+                                    <Input class="travel-touch" v-model="editData.address" name="address" placeholder="Address" />
+                                    <InputError :message="editError('address')" />
                                     <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                        <Input class="travel-touch" v-model="editData.contact_phone" placeholder="Phone" />
-                                        <Input class="travel-touch" v-model="editData.contact_email" placeholder="Email" />
+                                        <div>
+                                            <Input class="travel-touch" v-model="editData.contact_phone" name="contact_phone" placeholder="Phone" />
+                                            <InputError :message="editError('contact_phone')" />
+                                        </div>
+                                        <div>
+                                            <Input class="travel-touch" v-model="editData.contact_email" name="contact_email" placeholder="Email" />
+                                            <InputError :message="editError('contact_email')" />
+                                        </div>
                                     </div>
-                                    <textarea v-model="editData.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                    <textarea v-model="editData.notes" name="notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                    <InputError :message="editError('notes')" />
                                     <details v-if="editData.type === 'flight' && editData.flight_details" class="rounded-md border border-border p-3" :open="hasAnyFlightDetailsValue(editData.flight_details)">
                                         <summary class="cursor-pointer text-sm font-medium">
                                             <span class="inline-flex items-center gap-2">
@@ -1334,15 +1485,16 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                             <fieldset class="grid gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Cabin &amp; pricing</legend>
                                                 <div class="grid gap-2 min-[460px]:grid-cols-2">
-                                                    <select v-model="editData.flight_details.cabin_class" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                                                    <select v-model="editData.flight_details.cabin_class" name="flight_details.cabin_class" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
                                                         <option :value="null">Cabin class</option>
                                                         <option value="economy">Economy</option>
                                                         <option value="premium_economy">Premium Economy</option>
                                                         <option value="business">Business</option>
                                                         <option value="first">First</option>
                                                     </select>
-                                                    <Input class="travel-touch uppercase" v-model="editData.flight_details.currency" maxlength="3" placeholder="Currency" @blur="uppercaseFlightDetailsCurrency" />
+                                                    <Input class="travel-touch uppercase" v-model="editData.flight_details.currency" name="flight_details.currency" maxlength="3" placeholder="Currency" @blur="uppercaseFlightDetailsCurrency" />
                                                 </div>
+                                                <InputError :message="editError('flight_details.cabin_class') || editError('flight_details.currency')" />
                                             </fieldset>
 
                                             <fieldset class="grid gap-3">
@@ -1350,60 +1502,79 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                                 <div class="grid gap-2 rounded-md bg-muted/30 p-2">
                                                     <div class="text-xs font-medium">Carry-on</div>
                                                     <div class="grid gap-2 min-[460px]:grid-cols-3">
-                                                        <Input class="travel-touch" v-model="editData.flight_details.carry_on_size" placeholder="Size" />
-                                                        <Input class="travel-touch" v-model="editData.flight_details.carry_on_weight" placeholder="Weight" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.carry_on_size" name="flight_details.carry_on_size" placeholder="Size" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.carry_on_weight" name="flight_details.carry_on_weight" placeholder="Weight" />
                                                         <div class="relative">
-                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.carry_on_fee" type="number" step="0.01" min="0" placeholder="Fee" />
+                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.carry_on_fee" name="flight_details.carry_on_fee" type="number" step="0.01" min="0" placeholder="Fee" />
                                                             <span v-if="editData.flight_details.currency" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{{ editData.flight_details.currency }}</span>
                                                         </div>
                                                     </div>
+                                                    <InputError :message="editError('flight_details.carry_on_size') || editError('flight_details.carry_on_weight') || editError('flight_details.carry_on_fee')" />
                                                 </div>
                                                 <div class="grid gap-2 rounded-md bg-muted/30 p-2">
                                                     <div class="text-xs font-medium">Personal item / extra carry</div>
                                                     <div class="grid gap-2 min-[460px]:grid-cols-3">
-                                                        <Input class="travel-touch" v-model="editData.flight_details.personal_item_size" placeholder="Size" />
-                                                        <Input class="travel-touch" v-model="editData.flight_details.personal_item_weight" placeholder="Weight" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.personal_item_size" name="flight_details.personal_item_size" placeholder="Size" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.personal_item_weight" name="flight_details.personal_item_weight" placeholder="Weight" />
                                                         <div class="relative">
-                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.personal_item_fee" type="number" step="0.01" min="0" placeholder="Fee" />
+                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.personal_item_fee" name="flight_details.personal_item_fee" type="number" step="0.01" min="0" placeholder="Fee" />
                                                             <span v-if="editData.flight_details.currency" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{{ editData.flight_details.currency }}</span>
                                                         </div>
                                                     </div>
+                                                    <InputError :message="editError('flight_details.personal_item_size') || editError('flight_details.personal_item_weight') || editError('flight_details.personal_item_fee')" />
                                                 </div>
                                                 <div class="grid gap-2 rounded-md bg-muted/30 p-2">
                                                     <div class="text-xs font-medium">Checked bag</div>
                                                     <div class="grid gap-2 min-[460px]:grid-cols-3">
-                                                        <Input class="travel-touch" v-model="editData.flight_details.checked_bag_size" placeholder="Size" />
-                                                        <Input class="travel-touch" v-model="editData.flight_details.checked_bag_weight" placeholder="Weight" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.checked_bag_size" name="flight_details.checked_bag_size" placeholder="Size" />
+                                                        <Input class="travel-touch" v-model="editData.flight_details.checked_bag_weight" name="flight_details.checked_bag_weight" placeholder="Weight" />
                                                         <div class="relative">
-                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.checked_bag_fee" type="number" step="0.01" min="0" placeholder="Fee" />
+                                                            <Input class="travel-touch pr-12" v-model="editData.flight_details.checked_bag_fee" name="flight_details.checked_bag_fee" type="number" step="0.01" min="0" placeholder="Fee" />
                                                             <span v-if="editData.flight_details.currency" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{{ editData.flight_details.currency }}</span>
                                                         </div>
                                                     </div>
+                                                    <InputError :message="editError('flight_details.checked_bag_size') || editError('flight_details.checked_bag_weight') || editError('flight_details.checked_bag_fee')" />
                                                 </div>
                                                 <div class="grid gap-2 min-[460px]:grid-cols-2">
-                                                    <Input class="travel-touch" v-model="editData.flight_details.additional_checked_bag_fee" type="number" step="0.01" min="0" placeholder="Extra checked bag fee" />
-                                                    <Input class="travel-touch" v-model="editData.flight_details.additional_checked_bag_allowance" placeholder="Extra checked allowance" />
+                                                    <div>
+                                                        <Input class="travel-touch" v-model="editData.flight_details.additional_checked_bag_fee" name="flight_details.additional_checked_bag_fee" type="number" step="0.01" min="0" placeholder="Extra checked bag fee" />
+                                                        <InputError :message="editError('flight_details.additional_checked_bag_fee')" />
+                                                    </div>
+                                                    <div>
+                                                        <Input class="travel-touch" v-model="editData.flight_details.additional_checked_bag_allowance" name="flight_details.additional_checked_bag_allowance" placeholder="Extra checked allowance" />
+                                                        <InputError :message="editError('flight_details.additional_checked_bag_allowance')" />
+                                                    </div>
                                                 </div>
                                             </fieldset>
 
                                             <fieldset class="grid gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Travel documents</legend>
-                                                <textarea v-model="editData.flight_details.visa_requirement" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Visa requirement" />
-                                                <textarea v-model="editData.flight_details.passport_validity_rule" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Passport validity rule" />
+                                                <textarea v-model="editData.flight_details.visa_requirement" name="flight_details.visa_requirement" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Visa requirement" />
+                                                <InputError :message="editError('flight_details.visa_requirement')" />
+                                                <textarea v-model="editData.flight_details.passport_validity_rule" name="flight_details.passport_validity_rule" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Passport validity rule" />
+                                                <InputError :message="editError('flight_details.passport_validity_rule')" />
                                             </fieldset>
 
                                             <fieldset class="grid gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Connection &amp; check-in</legend>
-                                                <textarea v-model="editData.flight_details.layover_notes" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Layover / connection notes" />
+                                                <textarea v-model="editData.flight_details.layover_notes" name="flight_details.layover_notes" class="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Layover / connection notes" />
+                                                <InputError :message="editError('flight_details.layover_notes')" />
                                                 <div class="grid gap-2 min-[460px]:grid-cols-2">
-                                                    <Input class="travel-touch" v-model="editData.flight_details.online_check_in_opens" maxlength="80" placeholder="Online check-in opens" />
-                                                    <Input class="travel-touch" v-model="editData.flight_details.boarding_closes" maxlength="80" placeholder="Boarding closes" />
+                                                    <div>
+                                                        <Input class="travel-touch" v-model="editData.flight_details.online_check_in_opens" name="flight_details.online_check_in_opens" maxlength="80" placeholder="Online check-in opens" />
+                                                        <InputError :message="editError('flight_details.online_check_in_opens')" />
+                                                    </div>
+                                                    <div>
+                                                        <Input class="travel-touch" v-model="editData.flight_details.boarding_closes" name="flight_details.boarding_closes" maxlength="80" placeholder="Boarding closes" />
+                                                        <InputError :message="editError('flight_details.boarding_closes')" />
+                                                    </div>
                                                 </div>
                                             </fieldset>
 
                                             <fieldset class="grid gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Notes</legend>
-                                                <textarea v-model="editData.flight_details.notes" class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Meal preferences, frequent flyer numbers, lounge access, or other flight notes" />
+                                                <textarea v-model="editData.flight_details.notes" name="flight_details.notes" class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Meal preferences, frequent flyer numbers, lounge access, or other flight notes" />
+                                                <InputError :message="editError('flight_details.notes')" />
                                             </fieldset>
                                         </div>
                                     </details>
@@ -1586,7 +1757,8 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     <CardHeader><CardTitle class="text-base">Add Reservation</CardTitle></CardHeader>
                     <CardContent>
                         <form class="grid gap-3" @submit.prevent="post(reservationForm, storeReservation.url(trip.id), ['title', 'provider_name', 'booking_reference', 'starts_at', 'ends_at', 'location_name', 'address', 'notes', 'airline', 'flight_number', 'departure_airport', 'arrival_airport', 'property_name', 'room_type'])">
-                            <select v-model="reservationForm.type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                            <FormErrorSummary :errors="reservationForm.errors" />
+                            <select v-model="reservationForm.type" name="type" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
                                 <option value="flight">Flight</option>
                                 <option value="lodging">Hotel / lodging</option>
                                 <option value="transport">Ground transport</option>
@@ -1594,34 +1766,72 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                                 <option value="dining">Dining</option>
                                 <option value="custom">Custom</option>
                             </select>
-                            <Input class="travel-touch" v-model="reservationForm.title" placeholder="Reservation title" />
+                            <InputError :message="reservationForm.errors.type" />
+                            <Input class="travel-touch" v-model="reservationForm.title" name="title" placeholder="Reservation title" />
                             <InputError :message="reservationForm.errors.title" />
-                            <Input class="travel-touch" v-model="reservationForm.provider_name" placeholder="Provider" />
-                            <Input class="travel-touch" v-model="reservationForm.booking_reference" placeholder="Confirmation number" />
+                            <Input class="travel-touch" v-model="reservationForm.provider_name" name="provider_name" placeholder="Provider" />
+                            <InputError :message="reservationForm.errors.provider_name" />
+                            <Input class="travel-touch" v-model="reservationForm.booking_reference" name="booking_reference" placeholder="Confirmation number" />
+                            <InputError :message="reservationForm.errors.booking_reference" />
                             <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                <Input class="travel-touch" v-model="reservationForm.starts_at" type="datetime-local" />
-                                <Input class="travel-touch" v-model="reservationForm.ends_at" type="datetime-local" />
+                                <div>
+                                    <Input class="travel-touch" v-model="reservationForm.starts_at" name="starts_at" type="datetime-local" />
+                                    <InputError :message="reservationForm.errors.starts_at" />
+                                </div>
+                                <div>
+                                    <Input class="travel-touch" v-model="reservationForm.ends_at" name="ends_at" type="datetime-local" />
+                                    <InputError :message="reservationForm.errors.ends_at" />
+                                </div>
                             </div>
                             <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                <Input class="travel-touch" v-model="reservationForm.starts_timezone" placeholder="Start timezone" />
-                                <Input class="travel-touch" v-model="reservationForm.ends_timezone" placeholder="End timezone" />
+                                <div>
+                                    <TimezonePicker v-model="reservationForm.starts_timezone" :timezones="timezones" label="Start timezone" error-target="starts_timezone" placeholder="Start timezone" />
+                                    <InputError :message="reservationForm.errors.starts_timezone" />
+                                </div>
+                                <div>
+                                    <TimezonePicker v-if="!reservationTimezonesLinked" v-model="reservationForm.ends_timezone" :timezones="timezones" label="End timezone" error-target="ends_timezone" placeholder="End timezone" />
+                                    <div v-else class="travel-touch flex items-center rounded-md border border-input px-3 text-sm text-muted-foreground" data-error-target="ends_timezone">Same as start: {{ reservationForm.starts_timezone }}</div>
+                                    <InputError :message="reservationForm.errors.ends_timezone" />
+                                </div>
                             </div>
+                            <label class="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                                <input v-model="reservationTimezonesLinked" type="checkbox" class="rounded border-input" />
+                                Same end timezone as start
+                            </label>
                             <template v-if="reservationForm.type === 'flight'">
                                 <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                    <Input class="travel-touch" v-model="reservationForm.airline" placeholder="Airline" />
-                                    <Input class="travel-touch" v-model="reservationForm.flight_number" placeholder="Flight #" />
+                                    <div>
+                                        <Input class="travel-touch" v-model="reservationForm.airline" name="airline" placeholder="Airline" />
+                                        <InputError :message="reservationForm.errors.airline" />
+                                    </div>
+                                    <div>
+                                        <Input class="travel-touch" v-model="reservationForm.flight_number" name="flight_number" placeholder="Flight #" />
+                                        <InputError :message="reservationForm.errors.flight_number" />
+                                    </div>
                                 </div>
                                 <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                    <Input class="travel-touch" v-model="reservationForm.departure_airport" placeholder="From airport" />
-                                    <Input class="travel-touch" v-model="reservationForm.arrival_airport" placeholder="To airport" />
+                                    <div>
+                                        <Input class="travel-touch" v-model="reservationForm.departure_airport" name="departure_airport" placeholder="From airport" />
+                                        <InputError :message="reservationForm.errors.departure_airport" />
+                                    </div>
+                                    <div>
+                                        <Input class="travel-touch" v-model="reservationForm.arrival_airport" name="arrival_airport" placeholder="To airport" />
+                                        <InputError :message="reservationForm.errors.arrival_airport" />
+                                    </div>
                                 </div>
                             </template>
                             <template v-if="reservationForm.type === 'lodging'">
-                                <Input class="travel-touch" v-model="reservationForm.property_name" placeholder="Property name" />
-                                <Input class="travel-touch" v-model="reservationForm.room_type" placeholder="Room type" />
+                                <Input class="travel-touch" v-model="reservationForm.property_name" name="property_name" placeholder="Property name" />
+                                <InputError :message="reservationForm.errors.property_name" />
+                                <Input class="travel-touch" v-model="reservationForm.room_type" name="room_type" placeholder="Room type" />
+                                <InputError :message="reservationForm.errors.room_type" />
                             </template>
-                            <Input class="travel-touch" v-model="reservationForm.address" placeholder="Address" />
-                            <textarea v-model="reservationForm.notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                            <Input class="travel-touch" v-model="reservationForm.location_name" name="location_name" placeholder="Location" />
+                            <InputError :message="reservationForm.errors.location_name" />
+                            <Input class="travel-touch" v-model="reservationForm.address" name="address" placeholder="Address" />
+                            <InputError :message="reservationForm.errors.address" />
+                            <textarea v-model="reservationForm.notes" name="notes" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                            <InputError :message="reservationForm.errors.notes" />
                             <Button type="submit" class="travel-button-primary" :disabled="reservationForm.processing">Add reservation</Button>
                         </form>
                     </CardContent>
@@ -2191,22 +2401,63 @@ const formatDateTime = (value: string | null, timeZone?: string) => value
                     </Card>
                 </div>
             </section>
+
+            <section v-if="activePanel === 'details'" class="grid gap-4 lg:grid-cols-[1fr_22rem]">
+                <Card class="travel-panel">
+                    <CardHeader><CardTitle class="text-base">Trip Details</CardTitle></CardHeader>
+                    <CardContent>
+                        <form class="grid gap-3" @submit.prevent="submitTripDetails">
+                            <Input v-model="tripForm.name" class="travel-touch" placeholder="Trip name" :disabled="!trip.can_edit" />
+                            <InputError :message="tripForm.errors.name" />
+                            <Input v-model="tripForm.destination" class="travel-touch" placeholder="Destination" :disabled="!trip.can_edit" />
+                            <InputError :message="tripForm.errors.destination" />
+                            <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                <Input v-model="tripForm.starts_on" class="travel-touch" type="date" :disabled="!trip.can_edit" />
+                                <Input v-model="tripForm.ends_on" class="travel-touch" type="date" :disabled="!trip.can_edit" />
+                            </div>
+                            <InputError :message="tripForm.errors.starts_on || tripForm.errors.ends_on" />
+                            <div class="grid gap-3 min-[460px]:grid-cols-2">
+                                <TimezonePicker v-model="tripForm.destination_timezone" :timezones="timezones" placeholder="Destination timezone" />
+                                <TimezonePicker v-model="tripForm.home_timezone" :timezones="timezones" placeholder="Home timezone" />
+                            </div>
+                            <InputError :message="tripForm.errors.destination_timezone || tripForm.errors.home_timezone" />
+                            <select v-model="tripForm.status" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm" :disabled="!trip.can_edit">
+                                <option value="draft">Draft</option>
+                                <option value="planned">Planned</option>
+                                <option value="active">Active</option>
+                                <option value="completed">Completed</option>
+                                <option value="archived">Archived</option>
+                            </select>
+                            <textarea v-model="tripForm.summary" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Summary" :disabled="!trip.can_edit" />
+                            <Button type="submit" class="travel-button-primary" :disabled="!trip.can_edit || tripForm.processing">Save trip details</Button>
+                        </form>
+                    </CardContent>
+                </Card>
+                <Card class="travel-panel">
+                    <CardHeader><CardTitle class="text-base">Timezone Frame</CardTitle></CardHeader>
+                    <CardContent class="space-y-3 text-sm text-muted-foreground">
+                        <p>Destination dates use {{ effectiveDestinationTimezone }} ({{ timezoneLabel(effectiveDestinationTimezone) }}).</p>
+                        <p>Home context uses {{ effectiveHomeTimezone }} ({{ timezoneLabel(effectiveHomeTimezone) }}).</p>
+                    </CardContent>
+                </Card>
+            </section>
         </div>
 
-        <div
-            v-if="lightboxDocument"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-            role="dialog"
-            aria-modal="true"
-            @click.self="closeLightbox"
-            @keydown.esc="closeLightbox"
-        >
-            <button type="button" class="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Close preview" @click="closeLightbox">
-                <X class="h-6 w-6" />
-            </button>
-            <img :src="lightboxDocument.file_url ?? undefined" :alt="lightboxDocument.title" class="max-h-full max-w-full rounded-md object-contain" />
-            <div class="absolute bottom-4 left-1/2 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-black/70 px-4 py-2 text-sm text-white">
-                {{ lightboxDocument.title }}<template v-if="lightboxDocument.size_label"> · {{ lightboxDocument.size_label }}</template>
+            <div
+                v-if="lightboxDocument"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+                role="dialog"
+                aria-modal="true"
+                @click.self="closeLightbox"
+                @keydown.esc="closeLightbox"
+            >
+                <button type="button" class="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Close preview" @click="closeLightbox">
+                    <X class="h-6 w-6" />
+                </button>
+                <img :src="lightboxDocument.file_url ?? undefined" :alt="lightboxDocument.title" class="max-h-full max-w-full rounded-md object-contain" />
+                <div class="absolute bottom-4 left-1/2 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-black/70 px-4 py-2 text-sm text-white">
+                    {{ lightboxDocument.title }}<template v-if="lightboxDocument.size_label"> · {{ lightboxDocument.size_label }}</template>
+                </div>
             </div>
         </div>
     </div>

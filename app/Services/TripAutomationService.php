@@ -19,6 +19,7 @@ class TripAutomationService
         if ($trip->reservations->where('type', 'lodging')->isEmpty()) {
             $this->suggest($trip, 'missing_lodging', 'No lodging reservation is attached yet.', [
                 'trip_nights' => max(0, $trip->starts_on->diffInDays($trip->ends_on)),
+                'destination_timezone' => $trip->effectiveDestinationTimezone(),
             ]);
         }
 

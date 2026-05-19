@@ -1,0 +1,140 @@
+{
+    "module": "mobile-ui-ux",
+    "status": "planned",
+    "last_updated": "2026-05-14",
+    "current_phase": {
+        "id": "01-mobile-audit-and-pain-point-inventory",
+        "status": "planned",
+        "next_action": "Run the seven mandatory walks at 360x640, 390x844, 430x932, and 820x1180. Save screenshots under ai/audit/mobile-2026-05-14/. Record at least 30 findings in audit_findings[] with the frozen field shape from Phase 01."
+    },
+    "phase_status": [
+        {
+            "id": "01-mobile-audit-and-pain-point-inventory",
+            "file": "ai/modules/mobile-ui-ux/01-mobile-audit-and-pain-point-inventory.md",
+            "status": "planned"
+        },
+        {
+            "id": "02-shell-navigation-and-safe-area",
+            "file": "ai/modules/mobile-ui-ux/02-shell-navigation-and-safe-area.md",
+            "status": "planned"
+        },
+        {
+            "id": "03-trip-workspace-and-full-screen-forms",
+            "file": "ai/modules/mobile-ui-ux/03-trip-workspace-and-full-screen-forms.md",
+            "status": "planned"
+        },
+        {
+            "id": "04-inputs-and-os-native-pickers",
+            "file": "ai/modules/mobile-ui-ux/04-inputs-and-os-native-pickers.md",
+            "status": "planned"
+        },
+        {
+            "id": "05-lists-feedback-and-touch-affordances",
+            "file": "ai/modules/mobile-ui-ux/05-lists-feedback-and-touch-affordances.md",
+            "status": "planned"
+        },
+        {
+            "id": "06-verification-and-release",
+            "file": "ai/modules/mobile-ui-ux/06-verification-and-release.md",
+            "status": "planned"
+        }
+    ],
+    "audit_findings": [],
+    "prior_work_baseline": [
+        "responsive-ui-uplift (verified 2026-05-05): touch targets >= 44px, 1-col dense forms on mobile, segmented grid trip nav, palette refresh.",
+        "scroll-issue (verified 2026-05-06): single document scroll owner on desktop, offcanvas mobile menu.",
+        "navigation-uplift (verified 2026-05-07): typed routes, sidebar/mobile-sheet parity, accurate active state."
+    ],
+    "decisions_locked_in": [
+        "Full-screen <Sheet> for edit forms on mobile (<sm); inline on desktop (>=sm). Single biggest mobile UX shift.",
+        "No bottom-nav bar. Workspace app; existing top header + offcanvas sheet is the right pattern.",
+        "Swipe-to-reveal Delete + tap-to-edit on rows for mobile. Inline Edit/Delete buttons stay on desktop.",
+        "Safe-area insets (top + bottom + left + right) respected on every full-bleed surface via pt-safe / pb-safe / pb-safe-or-4 utilities plus viewport-fit=cover in the meta tag.",
+        "Stay with semantically correct input types (number/email/tel/date/etc); layer inputmode + enterkeyhint + autocomplete on top for keyboard hints. Don't swap to type=text for numerics.",
+        "Top progress bar via Inertia's progress plugin (color = theme --primary). Per-section skeletons render only where deferred-prop or measurable wait exists.",
+        "Toasts: bottom-center on <sm, top-right on >=sm. 44px close button, 4s auto-dismiss (success) / 6s (error), queue if multiple arrive.",
+        "Out of scope for this module: PWA, service worker, offline, native apps/Capacitor, pull-to-refresh, haptics, gesture-based panel switching, design-system swap, new microcopy, a11y-only work."
+    ],
+    "open_questions": [
+        "Confirm @vueuse/core is already a dependency (useMediaQuery + useSwipe). If not, add it in Phase 03/05.",
+        "Confirm shadcn-vue's <Sheet> component supports side='bottom' with full h-[100dvh] in this project (used by Phase 03's EditSheet).",
+        "Confirm the existing flash-message renderer location (search for usePage().props.flash usage) before Phase 02 repositions it.",
+        "Confirm whether @inertiajs/vue3 progress plugin is already enabled in resources/js/app.ts; if so, just verify color/sizing.",
+        "Confirm the iPad Mini breakpoint behavior at 820px: should it use the mobile EditSheet (sub-sm) or desktop inline (>=sm)? Locked to inline today; revisit if audit findings disagree."
+    ],
+    "viewport_targets": [
+        { "label": "iPhone SE 3rd gen", "width": 375, "height": 667, "category": "smallest-mobile" },
+        { "label": "iPhone 14 / 15", "width": 390, "height": 844, "category": "mainstream-mobile" },
+        { "label": "iPhone 14 Pro Max", "width": 430, "height": 932, "category": "wide-mobile" },
+        { "label": "iPad Mini portrait", "width": 820, "height": 1180, "category": "tablet-boundary" }
+    ],
+    "new_components_planned": [
+        {
+            "name": "EditSheet",
+            "path": "resources/js/components/EditSheet.vue",
+            "phase": "03",
+            "purpose": "Wraps an edit form; renders full-screen Sheet on <sm, inline on >=sm. Provides sticky Cancel/Save header on mobile."
+        },
+        {
+            "name": "FormSectionPills",
+            "path": "resources/js/components/FormSectionPills.vue",
+            "phase": "03",
+            "purpose": "Sticky horizontal pill scroller for long forms; jumps to sections via getElementById + scrollIntoView."
+        },
+        {
+            "name": "SwipeRow",
+            "path": "resources/js/components/SwipeRow.vue",
+            "phase": "05",
+            "purpose": "Touch-only swipe-left-to-reveal-Delete wrapper. Inert on >=sm. Tap on body invokes primary action (edit)."
+        },
+        {
+            "name": "SkeletonRow",
+            "path": "resources/js/components/SkeletonRow.vue",
+            "phase": "05",
+            "purpose": "Pulsing placeholder block for deferred/loading panels. Use only where audit findings call for it."
+        }
+    ],
+    "new_helpers_planned": [
+        {
+            "name": "scrollToFirstError",
+            "path": "resources/js/lib/scrollToFirstError.ts",
+            "phase": "05",
+            "purpose": "Pure function: given an errors object, finds the first matching DOM element via [data-error-target] or [name], scrolls it into view, and focuses it."
+        }
+    ],
+    "css_additions_planned": [
+        "pt-safe, pb-safe, pl-safe, pr-safe, pb-safe-or-4, pt-safe-or-3 utility classes in resources/css/app.css.",
+        "--header-height CSS variable (56px <sm, 64px >=sm).",
+        "scroll-margin-top rules for deep-link anchors (reservation-{id}, packing-item-{id}, etc.).",
+        "active:scale-[0.98] + active:bg-primary/90 additions to travel-button-primary and travel-touch classes.",
+        "touch-manipulation utility applied to interactive surfaces to suppress double-tap zoom while preserving accessibility zoom."
+    ],
+    "state_owners": {
+        "edit_sheet_open": "existing editing: { type, id } ref in Trips/Show.vue; EditSheet binds via computed open flag",
+        "swipe_row_offset": "ref<number> internal to each <SwipeRow> instance",
+        "toast_queue": "ref<FlashMessage[]> in the existing flash renderer; not promoted to a global store",
+        "skeleton_visibility": "derived from existing Inertia processing/loading flags; no new state",
+        "media_query_mobile": "shared useMediaQuery('(max-width: 639px)') instance per page",
+        "section_pills_active": "derived from getElementById on tap; no Vue ref needed"
+    },
+    "regression_watch": [
+        "responsive-ui-uplift work (touch targets, mobile grid trip nav) must still hold.",
+        "scroll-issue single-scroll-owner rule must still hold (EditSheet's inner scroll is acceptable; body locks while open).",
+        "navigation-uplift parity (sidebar = mobile sheet) must still hold.",
+        "notification-deep-links anchor scroll must land below the sticky header (scroll-margin-top in Phase 02).",
+        "themes-plan: all five themes render the new components legibly.",
+        "packing-attribution, document-uploads, flight-details panels behave inside the new EditSheet wrapper.",
+        "live-trip-collaboration realtime fan-out continues to refresh the trip view while EditSheet is open."
+    ],
+    "verification": [],
+    "handoff": {
+        "summary": "Planning only. Six phase files written; no code changes yet. Owner of Phase 01 should run the seven mandatory walks at the four viewport widths, save screenshots, and populate audit_findings[] with at least 30 findings before any fix phase starts.",
+        "next_agent_steps": [
+            "Resolve the five open questions and append answers to decisions_locked_in.",
+            "Run the Phase 01 audit; populate audit_findings[] in this state file.",
+            "Decide deferral of any low-severity findings before Phase 02 starts so the fix-phase owners aren't chasing scope creep.",
+            "Implement Phase 02 first (shell + safe-area) so later phases aren't fighting layout shifts.",
+            "Land Phase 06's real-device matrix only after all four fix phases have shipped to a feature branch."
+        ]
+    }
+}

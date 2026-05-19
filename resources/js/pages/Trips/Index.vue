@@ -2,14 +2,17 @@
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { CalendarDays, Luggage, MapPin, Plane, Plus, Search, Share2 } from 'lucide-vue-next';
 import InputError from '@/components/InputError.vue';
+import TimezonePicker from '@/components/TimezonePicker.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { formatTripDate } from '@/lib/dates';
 
 type TripSummary = {
     id: number;
     name: string;
     destination: string;
+    effective_destination_timezone: string;
     starts_on: string;
     ends_on: string;
     status: string;
@@ -32,6 +35,8 @@ const props = defineProps<{
     trips: TripSummary[];
     filters: { search: string; status?: string | null };
     stats: { total: number; upcoming: number; active: number; shared: number };
+    timezones: string[];
+    homeTimezone: string;
 }>();
 
 defineOptions({
@@ -43,6 +48,8 @@ defineOptions({
 const form = useForm({
     name: '',
     destination: '',
+    destination_timezone: null as string | null,
+    home_timezone: props.homeTimezone,
     starts_on: '',
     ends_on: '',
     status: 'planned',
@@ -71,12 +78,6 @@ const search = () => {
         replace: true,
     });
 };
-
-const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-}).format(new Date(`${value}T00:00:00`));
 
 const bucketLabel = (bucket: string) => ({
     active: 'Traveling now',
@@ -142,6 +143,11 @@ const bucketLabel = (bucket: string) => ({
                             <Input v-model="form.destination" class="travel-touch" placeholder="Destination" />
                             <InputError :message="form.errors.destination" />
                             <div class="grid gap-3 min-[430px]:grid-cols-2">
+                                <TimezonePicker v-model="form.destination_timezone" :timezones="timezones" placeholder="Destination timezone" />
+                                <TimezonePicker v-model="form.home_timezone" :timezones="timezones" placeholder="Home timezone" />
+                            </div>
+                            <InputError :message="form.errors.destination_timezone || form.errors.home_timezone" />
+                            <div class="grid gap-3 min-[430px]:grid-cols-2">
                                 <Input v-model="form.starts_on" class="travel-touch" type="date" />
                                 <Input v-model="form.ends_on" class="travel-touch" type="date" />
                             </div>
@@ -196,7 +202,7 @@ const bucketLabel = (bucket: string) => ({
                             </div>
                             <div class="flex items-center gap-2">
                                 <CalendarDays class="h-4 w-4" />
-                                {{ formatDate(trip.starts_on) }} - {{ formatDate(trip.ends_on) }} · {{ trip.length }}
+                                {{ formatTripDate(trip.starts_on, trip.effective_destination_timezone) }} - {{ formatTripDate(trip.ends_on, trip.effective_destination_timezone) }} · {{ trip.length }}
                             </div>
                             <div class="flex items-center gap-2">
                                 <Plane class="h-4 w-4" />

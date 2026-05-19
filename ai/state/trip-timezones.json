@@ -1,0 +1,277 @@
+{
+    "module": "trip-timezones",
+    "status": "implemented",
+    "last_updated": "2026-05-19",
+    "current_phase": {
+        "id": "05-derivatives-and-verification",
+        "status": "implemented",
+        "next_action": "Run full release verification if needed: php artisan test --compact, npm run lint:check, npm run types:check, npm run build. Focused TripTimezone, TripSyncDays, TripExportTimezone, and CalendarTimezone tests passed on 2026-05-19."
+    },
+    "phase_status": [
+        {
+            "id": "01-audit-and-ground-truth",
+            "file": "ai/modules/trip-timezones/01-audit-and-ground-truth.md",
+            "status": "implemented"
+        },
+        {
+            "id": "02-schema-and-timezone-fields",
+            "file": "ai/modules/trip-timezones/02-schema-and-timezone-fields.md",
+            "status": "implemented"
+        },
+        {
+            "id": "03-day-numbering-and-travel-days",
+            "file": "ai/modules/trip-timezones/03-day-numbering-and-travel-days.md",
+            "status": "implemented"
+        },
+        {
+            "id": "04-display-and-formatting",
+            "file": "ai/modules/trip-timezones/04-display-and-formatting.md",
+            "status": "implemented"
+        },
+        {
+            "id": "05-derivatives-and-verification",
+            "file": "ai/modules/trip-timezones/05-derivatives-and-verification.md",
+            "status": "implemented"
+        }
+    ],
+    "reported_bug": {
+        "user_summary": "Trip starts on the 25th (not editable in current UI), user leaves the US on the 26th, arrives in Manila on the 27th, and wants Day 1 to be the 27th (Manila arrival).",
+        "decoded": [
+            "Display drift: resources/js/pages/Trips/Show.vue:1044-1046 parses YYYY-MM-DD via new Date(), which is UTC midnight. From any US tz, starts_on = 2026-09-26 renders as Sep 25. Same lambda lives in Trips/Index.vue, Trips/Search.vue, Trips/Print.vue.",
+            "Semantic gap: trips table has no destination_timezone; Trip::syncDays in app/Models/Trip.php:130-155 iterates raw date strings labeling days 'Day 1', 'Day 2' by position; no concept of a travel day, an arrival day, or a destination-local Day 1."
+        ]
+    },
+    "audit_findings": [
+        {
+            "id": "tz-001",
+            "kind": "render",
+            "file_path": "resources/js/pages/Trips/Show.vue",
+            "line_range": "1044-1056",
+            "summary": "Trip detail used page-local date formatting, including new Date(value) on date-only strings. Replaced with formatTripDate/formatTripDateTime helpers and destination timezone payload fields.",
+            "proposed_fix_phase": "04",
+            "severity": "critical",
+            "evidence": "rg audit and focused TripTimezoneTest payload assertion"
+        },
+        {
+            "id": "tz-002",
+            "kind": "render",
+            "file_path": "resources/js/pages/Trips/Index.vue",
+            "line_range": "75-80",
+            "summary": "Trip cards had their own date formatter. Replaced with formatTripDate using effective_destination_timezone.",
+            "proposed_fix_phase": "04",
+            "severity": "critical",
+            "evidence": "resources/js/lib/dates.ts and Trips/Index.vue"
+        },
+        {
+            "id": "tz-003",
+            "kind": "compute",
+            "file_path": "app/Models/Trip.php",
+            "line_range": "130-155",
+            "summary": "syncDays generated plain Day N rows without destination timezone, travel day kinds, or Day 1 override. It now generates destination-local dates, kind values, labels, and preserves anchors.",
+            "proposed_fix_phase": "03",
+            "severity": "high",
+            "evidence": "tests/Feature/TripSyncDaysTest.php"
+        },
+        {
+            "id": "tz-004",
+            "kind": "store",
+            "file_path": "database/migrations/2026_05_19_010530_add_timezones_to_trips_table.php",
+            "line_range": "1-55",
+            "summary": "Trips lacked destination_timezone and home_timezone. Added nullable IANA columns with conservative known-destination backfill.",
+            "proposed_fix_phase": "02",
+            "severity": "high",
+            "evidence": "tests/Feature/TripTimezoneTest.php"
+        },
+        {
+            "id": "tz-005",
+            "kind": "export",
+            "file_path": "app/Services/TripExportService.php",
+            "line_range": "20-115",
+            "summary": "Exports omitted trip timezone metadata and day label metadata. JSON now includes timezone and day label fields; ICS emits X-WR-TIMEZONE and a trip all-day event with date values as written.",
+            "proposed_fix_phase": "05",
+            "severity": "critical",
+            "evidence": "tests/Feature/TripExportTimezoneTest.php"
+        },
+        {
+            "id": "tz-006",
+            "kind": "render",
+            "file_path": "resources/js/pages/Trips/Print.vue",
+            "line_range": "1-95",
+            "summary": "Print view used local Date parsing and day titles. It now uses formatTripDate, per-item timezone formatting, destination timezone context, and day labels.",
+            "proposed_fix_phase": "05",
+            "severity": "critical",
+            "evidence": "resources/js/pages/Trips/Print.vue"
+        },
+        {
+            "id": "tz-007",
+            "kind": "render",
+            "file_path": "resources/js/pages/Trips/Search.vue",
+            "line_range": "55-68",
+            "summary": "Search results rendered raw date strings. They now use formatTripDate and effective_destination_timezone.",
+            "proposed_fix_phase": "05",
+            "severity": "medium",
+            "evidence": "resources/js/pages/Trips/Search.vue"
+        },
+        {
+            "id": "tz-008",
+            "kind": "compute",
+            "file_path": "app/Http/Controllers/CalendarController.php",
+            "line_range": "15-95",
+            "summary": "Calendar had no trip-envelope event. It now includes all-day trip events keyed by destination-local starts_on and timezone metadata.",
+            "proposed_fix_phase": "05",
+            "severity": "high",
+            "evidence": "tests/Feature/CalendarTimezoneTest.php"
+        },
+        {
+            "id": "tz-009",
+            "kind": "import",
+            "file_path": "app/Services/TripImportParser.php",
+            "line_range": "45-80",
+            "summary": "Confirmation imports defaulted reservation timezones to UTC. Parser now infers simple IATA airport timezones and exposes destination_timezone for commit backfill.",
+            "proposed_fix_phase": "05",
+            "severity": "medium",
+            "evidence": "app/Http/Controllers/TripImportController.php"
+        },
+        {
+            "id": "tz-010",
+            "kind": "render",
+            "file_path": "resources/js/pages/Trips/Show.vue",
+            "line_range": "2240-2275",
+            "summary": "The trip dates were not exposed in an obvious edit surface on the detail page. Added a Details panel with starts_on, ends_on, destination timezone, and home timezone controls.",
+            "proposed_fix_phase": "02",
+            "severity": "high",
+            "evidence": "tests/Feature/TripTimezoneTest.php"
+        }
+    ],
+    "decisions_locked_in": [
+        "Trip's destination_timezone is authoritative for trip-envelope dates (starts_on, ends_on, day labels, length, timingBucket). Reservations keep their per-leg timezones.",
+        "home_timezone is informational (falls back to UserTravelPreference.home_timezone, then config('app.timezone')). Day numbering never depends on it.",
+        "trip_days.kind enum default 'vacation'. Same-tz trips never see other values; behavior unchanged.",
+        "starts_on and ends_on stay as 'date' columns; their meaning becomes 'the local calendar date in destination_timezone'. No rename migration.",
+        "Date strings stay YYYY-MM-DD on the wire; the frontend never calls new Date(value) on a date-only string. Single helper formatTripDate(value, tz) in resources/js/lib/dates.ts.",
+        "No geocode-based timezone lookup in Phase 02 — hand-curated table for top ~30 destinations plus a fallback inline picker prompt.",
+        "User-facing 'Mark as Day 1' override on each trip_day; overrides the heuristic-chosen anchor.",
+        "No changes to reservations, flight segments, lodging stays, reminders, or imports beyond what Phase 05 derivative pass requires."
+    ],
+    "open_questions": [
+        "Confirm whether the trip edit form already exposes starts_on/ends_on controls (the user said they 'don't have the ability to edit currently' — find out if that's a missing control or just the display drift confusing them). Answered in Phase 01.",
+        "Destination timezone remains nullable on the server for existing/imported trips; known destinations are inferred and unknown trips show an inline prompt.",
+        "Destination lookup and airport lookup both live in app/Support/TimezoneLookup.php.",
+        "No existing Combobox component was present, so TimezonePicker ships as a native select using the app's travel-touch styling.",
+        "Browser timezone matrix screenshots were not captured in this implementation pass; focused server/Inertia tests and frontend build/type gates are the current automated evidence."
+    ],
+    "concrete_user_scenario": {
+        "label": "Manila trip from LA",
+        "trip": {
+            "destination": "Manila, Philippines",
+            "starts_on": "2026-09-26",
+            "ends_on": "2026-10-05",
+            "destination_timezone_after_phase_02": "Asia/Manila",
+            "home_timezone_after_phase_02": "America/Los_Angeles"
+        },
+        "key_flight": {
+            "departs_at": "2026-09-26T22:00:00-07:00 (LAX)",
+            "arrives_at": "2026-09-28T06:00:00+08:00 (MNL)"
+        },
+        "expected_after_module_ships": [
+            "Hero renders 'Sep 26 – Oct 5, 2026' in all browser timezones.",
+            "Second hero line reads 'in Manila time (PHT, UTC+8)'.",
+            "Third hero line reads 'You leave Sep 26 in Los Angeles time (PDT, UTC-7)'.",
+            "First day card: 'Travel · departure · Sep 26'.",
+            "Second day card: 'Arrival · Day 1 · Sep 27'.",
+            "Trip length label 'Day 1 – Day 9 + 1 travel day' or similar (decide exact wording in Phase 03)."
+        ]
+    },
+    "new_components_planned": [
+        {
+            "name": "TimezonePicker",
+            "path": "resources/js/components/TimezonePicker.vue",
+            "phase": "02",
+            "purpose": "Searchable combobox of IANA timezones with synonyms ('manila', 'uk', 'hawaii') and a 'Recent' section."
+        },
+        {
+            "name": "TripDates",
+            "path": "app/Support/TripDates.php",
+            "phase": "04",
+            "purpose": "Server-side companion to formatTripDate. Static formatDate / formatDateTime that take an explicit timezone."
+        }
+    ],
+    "new_helpers_planned": [
+        {
+            "name": "formatTripDate",
+            "path": "resources/js/lib/dates.ts",
+            "phase": "04",
+            "purpose": "Format a date-only YYYY-MM-DD string against a destination timezone without the UTC-midnight drift."
+        },
+        {
+            "name": "formatTripDateTime",
+            "path": "resources/js/lib/dates.ts",
+            "phase": "04",
+            "purpose": "Format a full ISO datetime against a given IANA timezone (replaces the per-page formatDateTime lambdas)."
+        },
+        {
+            "name": "timezoneLabel",
+            "path": "resources/js/lib/dates.ts",
+            "phase": "04",
+            "purpose": "Resolve 'PHT, UTC+8' style short labels from an IANA name via Intl.DateTimeFormat."
+        }
+    ],
+    "schema_changes_planned": [
+        "trips.destination_timezone (string, nullable) and trips.home_timezone (string, nullable). Phase 02.",
+        "trip_days.kind (string, default 'vacation') and trip_days.is_day_one_anchor (boolean, default false). Phase 03.",
+        "Data migration: backfill trips.destination_timezone for known destinations via a hand-curated lookup. Phase 02."
+    ],
+    "regression_watch": [
+        "Existing reservation / flight segment / lodging stay date rendering must still respect per-leg timezones — Phase 04 is forbidden from changing their argument shape.",
+        "Reminders inbox grouping must still honor TripReminder.timezone — Phase 05 includes a regression test.",
+        "Trip activity events must continue to record for date edits and the new anchor mutation.",
+        "live-trip-collaboration channel must fan out the anchor mutation (Phase 03 records a TripActivityEvent).",
+        "navigation-uplift, scroll-issue, themes-plan, mobile-ui-ux — unrelated; no shared surfaces touched.",
+        "editable-trip-entries: confirm the trip edit affordance still works after timezone fields are added to the form."
+    ],
+    "verification": [
+        {
+            "command": "php artisan test --compact tests/Feature/TripTimezoneTest.php tests/Feature/TripSyncDaysTest.php tests/Feature/TripExportTimezoneTest.php tests/Feature/CalendarTimezoneTest.php",
+            "status": "passed",
+            "ran_at": "2026-05-19"
+        },
+        {
+            "command": "php artisan test --compact tests/Feature/TripManagementTest.php tests/Feature/TripImportExportTest.php tests/Feature/CalendarControllerTest.php tests/Feature/TripTimezoneTest.php tests/Feature/TripSyncDaysTest.php tests/Feature/TripExportTimezoneTest.php tests/Feature/CalendarTimezoneTest.php",
+            "status": "passed",
+            "ran_at": "2026-05-19"
+        },
+        {
+            "command": "php artisan test --compact",
+            "status": "passed",
+            "ran_at": "2026-05-19"
+        },
+        {
+            "command": "npm run lint:check",
+            "status": "passed",
+            "ran_at": "2026-05-19"
+        },
+        {
+            "command": "npm run types:check",
+            "status": "passed",
+            "ran_at": "2026-05-19"
+        },
+        {
+            "command": "npm run build",
+            "status": "passed",
+            "ran_at": "2026-05-19"
+        },
+        {
+            "command": "vendor/bin/pint --dirty --format agent",
+            "status": "passed",
+            "ran_at": "2026-05-19"
+        }
+    ],
+    "handoff": {
+        "summary": "Implemented the module across schema, model day generation, trip detail editing, frontend date helpers, print/search/calendar/export/import derivatives, and focused tests. Manual browser screenshots for the timezone matrix are still not captured.",
+        "next_agent_steps": [
+            "If production release confidence is required, run the full app test suite plus lint/types/build.",
+            "Capture manual browser screenshots for the Manila, London, same-timezone, DST, and unknown-destination matrix.",
+            "Consider replacing the native TimezonePicker select with a searchable combobox if the component library adds one later."
+        ]
+    }
+}

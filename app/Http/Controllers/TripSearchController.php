@@ -27,7 +27,14 @@ class TripSearchController extends Controller
                         ->orWhereHas('tasks', fn ($subquery) => $subquery->where('title', 'like', "%{$query}%"));
                 })
                 ->limit(20)
-                ->get();
+                ->get()
+                ->map(fn (Trip $trip) => [
+                    ...$trip->toArray(),
+                    'effective_destination_timezone' => $trip->effectiveDestinationTimezone(),
+                    'reservations' => $trip->reservations,
+                    'documents' => $trip->documents,
+                    'tasks' => $trip->tasks,
+                ]);
         }
 
         return Inertia::render('Trips/Search', [

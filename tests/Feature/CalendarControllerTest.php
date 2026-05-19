@@ -70,10 +70,12 @@ test('calendar shows only visible trip events for the requested month', function
         ->assertInertia(fn (Assert $page) => $page
             ->component('calendar/Index')
             ->where('month', '2026-06-01')
-            ->has('events', 3)
-            ->where('events.0.title', 'Botanic Gardens')
-            ->where('events.1.title', 'Union Station hotel')
-            ->where('events.2.kind', 'task')
-            ->where('events.2.title', 'Confirm timed entry'),
+            ->has('events', 4)
+            ->where('events.0.kind', 'trip')
+            ->where('events.0.title', 'Denver Weekend')
+            ->where('events.1.title', 'Botanic Gardens')
+            ->where('events.2.title', 'Union Station hotel')
+            ->where('events.3.kind', 'task')
+            ->where('events.3.title', 'Confirm timed entry'),
         );
 });

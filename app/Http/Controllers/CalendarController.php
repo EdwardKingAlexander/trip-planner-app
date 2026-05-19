@@ -33,6 +33,14 @@ class CalendarController extends Controller
                     ->whereBetween('remind_at', [$windowStart, $windowEnd])
                     ->orderBy('remind_at'),
             ])
+            ->where(function ($query) use ($windowStart, $windowEnd) {
+                $query->whereBetween('starts_on', [$windowStart->toDateString(), $windowEnd->toDateString()])
+                    ->orWhereBetween('ends_on', [$windowStart->toDateString(), $windowEnd->toDateString()])
+                    ->orWhere(function ($query) use ($windowStart, $windowEnd) {
+                        $query->where('starts_on', '<=', $windowStart->toDateString())
+                            ->where('ends_on', '>=', $windowEnd->toDateString());
+                    });
+            })
             ->orderBy('starts_on')
             ->get();
 
@@ -40,6 +48,16 @@ class CalendarController extends Controller
             'month' => $month->toDateString(),
             'timezone' => $timezone,
             'events' => $trips->flatMap(fn (Trip $trip) => [
+                [
+                    'id' => "trip-{$trip->id}",
+                    'kind' => 'trip',
+                    'title' => $trip->name,
+                    'trip' => ['id' => $trip->id, 'name' => $trip->name],
+                    'startsAt' => $trip->starts_on->toDateString(),
+                    'endsAt' => $trip->ends_on->toDateString(),
+                    'allDay' => true,
+                    'timezone' => $trip->effectiveDestinationTimezone(),
+                ],
                 ...$trip->itineraryItems->map(fn ($item) => [
                     'id' => "itinerary-{$item->id}",
                     'kind' => 'itinerary',

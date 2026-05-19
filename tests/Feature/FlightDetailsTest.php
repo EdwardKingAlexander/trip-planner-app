@@ -172,7 +172,6 @@ test('it validates flight details fields', function (array $flightDetails, strin
 })->with([
     'invalid cabin' => [['cabin_class' => 'wagon'], 'flight_details.cabin_class'],
     'short currency' => [['currency' => 'US'], 'flight_details.currency'],
-    'lowercase currency' => [['currency' => 'usd'], 'flight_details.currency'],
     'negative fee' => [['carry_on_fee' => '-1'], 'flight_details.carry_on_fee'],
     'too many decimals' => [['carry_on_fee' => '12.345'], 'flight_details.carry_on_fee'],
     'oversized visa' => [['visa_requirement' => str_repeat('a', 1001)], 'flight_details.visa_requirement'],

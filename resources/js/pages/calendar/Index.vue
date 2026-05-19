@@ -10,7 +10,7 @@ import { show as tripShow } from '@/routes/trips';
 
 type CalendarEvent = {
     id: string;
-    kind: 'itinerary' | 'reservation' | 'task' | 'reminder';
+    kind: 'trip' | 'itinerary' | 'reservation' | 'task' | 'reminder';
     title: string;
     trip: { id: number; name: string };
     startsAt: string | null;
@@ -35,39 +35,47 @@ defineOptions({
     },
 });
 
-const monthDate = computed(() => new Date(`${props.month}T00:00:00`));
+const dateFromDateOnly = (value: string) => {
+    const [year, month, day] = value.split('-').map(Number);
+
+    return new Date(Date.UTC(year, month - 1, day));
+};
+
+const dateKey = (date: Date) => date.toISOString().slice(0, 10);
+
+const monthDate = computed(() => dateFromDateOnly(props.month));
 const monthLabel = computed(() =>
     new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: props.timezone }).format(monthDate.value),
 );
 
 const previousMonth = computed(() => {
     const date = new Date(monthDate.value);
-    date.setMonth(date.getMonth() - 1);
+    date.setUTCMonth(date.getUTCMonth() - 1);
 
-    return calendarIndex({ query: { month: date.toISOString().slice(0, 10) } });
+    return calendarIndex({ query: { month: dateKey(date) } });
 });
 
 const nextMonth = computed(() => {
     const date = new Date(monthDate.value);
-    date.setMonth(date.getMonth() + 1);
+    date.setUTCMonth(date.getUTCMonth() + 1);
 
-    return calendarIndex({ query: { month: date.toISOString().slice(0, 10) } });
+    return calendarIndex({ query: { month: dateKey(date) } });
 });
 
 const calendarDays = computed(() => {
     const first = new Date(monthDate.value);
-    first.setDate(1 - first.getDay());
+    first.setUTCDate(1 - first.getUTCDay());
 
     return Array.from({ length: 42 }, (_, index) => {
         const date = new Date(first);
-        date.setDate(first.getDate() + index);
-        const dateKey = date.toISOString().slice(0, 10);
+        date.setUTCDate(first.getUTCDate() + index);
+        const key = dateKey(date);
 
         return {
             date,
-            dateKey,
-            isCurrentMonth: date.getMonth() === monthDate.value.getMonth(),
-            events: props.events.filter((event) => event.startsAt?.slice(0, 10) === dateKey),
+            dateKey: key,
+            isCurrentMonth: date.getUTCMonth() === monthDate.value.getUTCMonth(),
+            events: props.events.filter((event) => event.startsAt?.slice(0, 10) === key),
         };
     });
 });
@@ -75,7 +83,7 @@ const calendarDays = computed(() => {
 const agendaDays = computed(() => calendarDays.value.filter((day) => day.events.length > 0));
 
 function timeLabel(value: string | null): string {
-    if (!value) {
+    if (!value || value.length === 10) {
         return 'All day';
     }
 
@@ -142,7 +150,7 @@ function panelForEvent(event: CalendarEvent): string {
                                 class="min-h-32 border-r border-b border-border p-2 last:border-r-0"
                                 :class="{ 'bg-muted/40 text-muted-foreground': !day.isCurrentMonth }"
                             >
-                                <div class="text-sm font-medium">{{ day.date.getDate() }}</div>
+                                <div class="text-sm font-medium">{{ day.date.getUTCDate() }}</div>
                                 <div class="mt-2 space-y-1">
                                     <Link
                                         v-for="event in day.events.slice(0, 3)"
@@ -166,7 +174,7 @@ function panelForEvent(event: CalendarEvent): string {
                         </div>
                         <section v-for="day in agendaDays" :key="day.dateKey" class="space-y-2">
                             <h2 class="text-sm font-semibold">
-                                {{ new Intl.DateTimeFormat('en', { weekday: 'long', month: 'short', day: 'numeric' }).format(day.date) }}
+                                {{ new Intl.DateTimeFormat('en', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(day.date) }}
                             </h2>
                             <Link
                                 v-for="event in day.events"

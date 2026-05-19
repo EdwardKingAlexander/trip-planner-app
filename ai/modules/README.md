@@ -56,6 +56,18 @@ Use [document-uploads](document-uploads/00-master-plan.md) to turn the text-only
 
 Use [flight-details](flight-details/00-master-plan.md) to give every flight reservation an optional sidecar covering cabin class, baggage allowance + fees per bag type (carry-on, personal item, checked, additional), trip-aware currency, visa requirement, passport validity rule, layover/connection notes, online check-in opens, boarding closes, and a free-text notes block — all nullable, with lazy create/delete and a one-line read-only summary on the reservation card. Its durable state file is `ai/state/flight-details.json`.
 
+## Mobile UI/UX
+
+Use [mobile-ui-ux](mobile-ui-ux/00-master-plan.md) to take the app from "renders without breaking on a phone" to "feels designed for one" — audit-first inventory of real pain points across four viewports, safe-area-inset shell, full-screen Sheet for edit forms on `<sm`, OS-native input pickers and touch-first file picker, swipe-to-reveal Delete + scroll-to-first-error + thumb-friendly toast positioning, and a real-device verification matrix on iPhone SE / iPhone 14 / Pixel 7 / iPad Mini. Its durable state file is `ai/state/mobile-ui-ux.json`.
+
+## Trip Timezones
+
+Use [trip-timezones](trip-timezones/00-master-plan.md) to fix the trip envelope's missing timezone awareness — `trips.starts_on` / `ends_on` have no destination timezone, the frontend `formatDate` parses date-only strings as UTC midnight (so a Manila trip shows the wrong date in a US browser), and `Trip::syncDays` labels every calendar date "Day N" with no concept of a travel day or destination-local Day 1. Adds `trips.destination_timezone` + `home_timezone`, a `trip_days.kind` enum (`travel-out`, `arrival`, `vacation`, `departure`, `travel-home`), a user-controlled "Mark as Day 1" anchor, a single `formatTripDate(value, tz)` helper that kills the UTC-midnight drift everywhere, and a derivatives pass over ICS / JSON / Print / Calendar / Search / Reminders / Imports. Its durable state file is `ai/state/trip-timezones.json`.
+
+## Reservation Create
+
+Use [reservation-create](reservation-create/00-master-plan.md) to fix "I cannot make another reservation" — the Add Reservation form on `Trips/Show.vue` renders an `InputError` only for `title` while the server validates 30+ fields, so any other rule failure (freeform timezone mistyped, `ends_at` before `starts_at`, oversized booking_reference, bad email) produces a silent 422 the user has no way to see. Adds a `FormErrorSummary`, per-input `InputError`s on both add and edit forms, a `scrollToFirstError` helper, a 422 toast, a constrained `TimezoneSelect` picker that replaces the freeform timezone Inputs, a timezone-aware `EndsAtAfterStarts` rule, and a global 419 session-expired toast. Its durable state file is `ai/state/reservation-create.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.

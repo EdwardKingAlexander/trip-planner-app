@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Support\TimezoneLookup;
+use App\Support\TripDates;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class Trip extends Model
@@ -18,6 +21,8 @@ class Trip extends Model
         'user_id',
         'name',
         'destination',
+        'destination_timezone',
+        'home_timezone',
         'starts_on',
         'ends_on',
         'status',
@@ -129,29 +134,88 @@ class Trip extends Model
 
     public function syncDays(?string $startDate = null, ?string $endDate = null): void
     {
+        $timezone = $this->effectiveDestinationTimezone();
         $validDates = [];
-        $date = $startDate ?? $this->starts_on->toDateString();
-        $endDate ??= $this->ends_on->toDateString();
+        $date = TripDates::date($startDate ?? $this->starts_on->toDateString(), $timezone);
+        $end = TripDates::date($endDate ?? $this->ends_on->toDateString(), $timezone);
         $order = 0;
-
-        while ($date <= $endDate) {
-            $validDates[] = $date;
+        $kindByDate = $this->tripDayKinds($date->toDateString(), $end->toDateString());
+        while ($date->lte($end)) {
+            $dateString = $date->toDateString();
+            $validDates[] = $dateString;
+            $kind = $kindByDate[$dateString] ?? 'vacation';
 
             DB::table('trip_days')->updateOrInsert(
-                ['trip_id' => $this->id, 'date' => $date],
+                ['trip_id' => $this->id, 'date' => $dateString],
                 [
                     'sort_order' => $order,
                     'title' => 'Day '.($order + 1),
+                    'kind' => $kind,
+                    'is_day_one_anchor' => $order === 0,
                     'updated_at' => now(),
                     'created_at' => now(),
                 ],
             );
 
-            $date = date('Y-m-d', strtotime($date.' +1 day'));
+            $date->addDay();
             $order++;
         }
 
         $this->days()->whereNotIn('date', $validDates)->delete();
+    }
+
+    public function effectiveDestinationTimezone(): string
+    {
+        return $this->destination_timezone ?: 'UTC';
+    }
+
+    public function effectiveHomeTimezone(): string
+    {
+        return $this->home_timezone
+            ?: $this->user?->travelPreference?->home_timezone
+            ?: config('app.timezone');
+    }
+
+    public function dayOneAnchor(): ?TripDay
+    {
+        $days = $this->relationLoaded('days') ? $this->days : $this->days()->get();
+
+        return $days->first();
+    }
+
+    public function vacationDayNumberFor(TripDay $day): ?int
+    {
+        $anchor = $this->dayOneAnchor();
+
+        if ($anchor === null) {
+            return null;
+        }
+
+        $anchorDate = Carbon::parse($anchor->date->toDateString(), $this->effectiveDestinationTimezone());
+        $thisDate = Carbon::parse($day->date->toDateString(), $this->effectiveDestinationTimezone());
+        $delta = (int) $anchorDate->diffInDays($thisDate, false);
+
+        if ($delta < 0) {
+            return null;
+        }
+
+        return $delta + 1;
+    }
+
+    public function dayLabelFor(TripDay $day): string
+    {
+        $dayNumber = $this->vacationDayNumberFor($day);
+
+        return match (true) {
+            $day->kind === 'travel-out' && $dayNumber !== null => "Travel · departure · Day {$dayNumber}",
+            $day->kind === 'travel-home' && $dayNumber !== null => "Travel · home · Day {$dayNumber}",
+            $day->kind === 'travel-out' => 'Travel · departure',
+            $day->kind === 'travel-home' => 'Travel · home',
+            $day->kind === 'arrival' && $dayNumber !== null => "Arrival · Day {$dayNumber}",
+            $day->kind === 'departure' && $dayNumber !== null => "Departure · Day {$dayNumber}",
+            $dayNumber !== null => "Day {$dayNumber}",
+            default => 'Travel',
+        };
     }
 
     public function canBeEditedBy(User $user): bool
@@ -170,27 +234,79 @@ class Trip extends Model
 
     public function tripLengthLabel(): string
     {
-        $days = $this->starts_on->diffInDays($this->ends_on) + 1;
+        $days = TripDates::date($this->starts_on->toDateString(), $this->effectiveDestinationTimezone())
+            ->diffInDays(TripDates::date($this->ends_on->toDateString(), $this->effectiveDestinationTimezone())) + 1;
 
         return $days === 1 ? '1 day' : "{$days} days";
     }
 
     public function timingBucket(?CarbonInterface $today = null): string
     {
-        $today ??= now();
+        $today = $today
+            ? Carbon::parse($today->toDateString(), $this->effectiveDestinationTimezone())->startOfDay()
+            : now($this->effectiveDestinationTimezone())->startOfDay();
 
         if ($this->status === 'archived') {
             return 'archived';
         }
 
-        if ($this->ends_on->lt($today->startOfDay())) {
+        $startsOn = TripDates::date($this->starts_on->toDateString(), $this->effectiveDestinationTimezone());
+        $endsOn = TripDates::date($this->ends_on->toDateString(), $this->effectiveDestinationTimezone());
+
+        if ($endsOn->lt($today)) {
             return 'past';
         }
 
-        if ($this->starts_on->lte($today) && $this->ends_on->gte($today)) {
+        if ($startsOn->lte($today) && $endsOn->gte($today)) {
             return 'active';
         }
 
         return 'upcoming';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tripDayKinds(string $startDate, string $endDate): array
+    {
+        $kinds = [];
+
+        $this->reservations()
+            ->with('flightSegments')
+            ->where('type', 'flight')
+            ->get()
+            ->flatMap->flightSegments
+            ->each(function (FlightSegment $segment) use (&$kinds, $startDate, $endDate): void {
+                if ($segment->departs_at === null || $segment->arrives_at === null) {
+                    return;
+                }
+
+                $destinationTimezone = $this->effectiveDestinationTimezone();
+                $arrivalTimezone = TimezoneLookup::airportTimezone($segment->arrival_airport) ?? $segment->arrival_timezone;
+
+                if ($arrivalTimezone !== $destinationTimezone) {
+                    return;
+                }
+
+                $departure = $segment->departs_at->copy()->setTimezone($segment->departure_timezone);
+                $arrival = $segment->arrives_at->copy()->setTimezone($destinationTimezone);
+
+                if ($arrival->toDateString() <= $departure->toDateString()) {
+                    return;
+                }
+
+                $departureDate = $departure->toDateString();
+                $arrivalDate = $arrival->toDateString();
+
+                if ($departureDate >= $startDate && $departureDate <= $endDate) {
+                    $kinds[$departureDate] = 'travel-out';
+                }
+
+                if ($arrivalDate >= $startDate && $arrivalDate <= $endDate) {
+                    $kinds[$arrivalDate] = 'arrival';
+                }
+            });
+
+        return $kinds;
     }
 }

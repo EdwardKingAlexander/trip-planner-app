@@ -10,25 +10,16 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class TripExportController extends Controller
 {
-    public function print(Trip $trip): Response
+    public function print(Trip $trip, TripExportService $exporter): Response
     {
         $this->authorize('view', $trip);
-
-        $trip->load([
-            'collaborators',
-            'days.itineraryItems',
-            'reservations.flightSegments',
-            'reservations.lodgingStay',
-            'reservations.flightDetails',
-            'costs',
-            'packingItems',
-            'tasks',
-            'documents',
-            'reminders',
-        ]);
+        $payload = $exporter->jsonPayload($trip);
 
         return Inertia::render('Trips/Print', [
-            'trip' => $trip,
+            'trip' => [
+                ...$payload['trip'],
+                ...collect($payload)->except('trip')->all(),
+            ],
         ]);
     }
 

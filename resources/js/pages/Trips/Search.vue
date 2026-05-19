@@ -3,6 +3,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { FileText, Luggage, Plane, Search } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { formatTripDate } from '@/lib/dates';
 
 type Trip = Record<string, any>;
 
@@ -58,7 +59,9 @@ const submit = () => {
                                 {{ trip.destination }}
                             </div>
                             <h2 class="mt-2 text-xl font-semibold">{{ trip.name }}</h2>
-                            <p class="mt-1 text-sm text-[#655c50] dark:text-[#c8beb0]">{{ trip.starts_on }} - {{ trip.ends_on }}</p>
+                            <p class="mt-1 text-sm text-[#655c50] dark:text-[#c8beb0]">
+                                {{ formatTripDate(trip.starts_on, trip.effective_destination_timezone) }} - {{ formatTripDate(trip.ends_on, trip.effective_destination_timezone) }}
+                            </p>
                         </div>
                         <div class="grid grid-cols-3 gap-2 text-center text-xs text-[#655c50]">
                             <div class="rounded-md bg-[#f0e7d9] p-2 dark:bg-[#24201b]"><Plane class="mx-auto mb-1 h-4 w-4" />{{ trip.reservations.length }}</div>

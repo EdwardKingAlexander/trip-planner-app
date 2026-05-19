@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\TimezoneLookup;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -45,6 +46,10 @@ class TripImportParser
         $lines = collect(preg_split('/\R+/', $rawText))->map(fn ($line) => trim($line))->filter();
         $title = $this->matchFirst($rawText, '/(?:hotel|property|airline|reservation|booking)[:#\s-]+(.+)/i') ?? $lines->first() ?? 'Imported reservation';
         $reference = $this->matchFirst($rawText, '/(?:confirmation|booking|reservation|record locator|reference)[:#\s-]+([A-Z0-9-]+)/i');
+        $arrivalAirport = $this->matchFirst($rawText, '/(?:arrival|arrive|to)[:#\s-]+([A-Z]{3})\b/i');
+        $departureAirport = $this->matchFirst($rawText, '/(?:departure|depart|from)[:#\s-]+([A-Z]{3})\b/i');
+        $startsTimezone = TimezoneLookup::airportTimezone($departureAirport) ?? 'UTC';
+        $endsTimezone = TimezoneLookup::airportTimezone($arrivalAirport) ?? 'UTC';
         $provider = $this->matchFirst($rawText, '/(?:provider|airline|hotel|property)[:#\s-]+(.+)/i');
         $email = $this->matchFirst($rawText, '/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i');
         $phone = $this->matchFirst($rawText, '/(?:phone|tel)[:#\s-]+([+0-9().\s-]+)/i');
@@ -61,8 +66,9 @@ class TripImportParser
                 'status' => 'reserved',
                 'starts_at' => $dates[0] ?? null,
                 'ends_at' => $dates[1] ?? null,
-                'starts_timezone' => 'UTC',
-                'ends_timezone' => 'UTC',
+                'starts_timezone' => $startsTimezone,
+                'ends_timezone' => $endsTimezone,
+                'destination_timezone' => $endsTimezone === 'UTC' ? null : $endsTimezone,
                 'contact_phone' => $phone,
                 'contact_email' => $email,
                 'notes' => Str::limit($rawText, 1500, ''),
