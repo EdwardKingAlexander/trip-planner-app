@@ -1375,7 +1375,7 @@ const submitTripDetails = () => {
 
             <section v-if="activePanel === 'reservations'" class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
                 <div class="grid min-w-0 gap-3">
-                    <Card v-for="reservation in trip.reservations" :id="`reservation-${reservation.id}`" :key="reservation.id" tabindex="-1" class="travel-panel outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+                    <Card v-for="reservation in trip.reservations" :id="`reservation-${reservation.id}`" :key="reservation.id" tabindex="-1" class="travel-panel min-w-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
                         <CardContent class="pt-6">
                             <template v-if="isEditing('reservation', reservation.id)">
                                 <form class="grid min-w-0 gap-3" @submit.prevent="patchEdit(updateReservation.url({ trip: trip.id, reservation: reservation.id }))">
@@ -1395,24 +1395,26 @@ const submitTripDetails = () => {
                                     <InputError :message="editError('provider_name')" />
                                     <Input class="travel-touch" v-model="editData.booking_reference" name="booking_reference" placeholder="Confirmation number" />
                                     <InputError :message="editError('booking_reference')" />
-                                    <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                        <div>
+                                    <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                        <div class="min-w-0">
                                             <Input class="travel-touch" v-model="editData.starts_at" name="starts_at" type="datetime-local" />
                                             <InputError :message="editError('starts_at')" />
                                         </div>
-                                        <div>
+                                        <div class="min-w-0">
                                             <Input class="travel-touch" v-model="editData.ends_at" name="ends_at" type="datetime-local" />
                                             <InputError :message="editError('ends_at')" />
                                         </div>
                                     </div>
-                                    <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                        <div>
+                                    <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                        <div class="min-w-0">
                                             <TimezonePicker v-model="editData.starts_timezone" :timezones="timezones" label="Start timezone" error-target="starts_timezone" placeholder="Start timezone" />
                                             <InputError :message="editError('starts_timezone')" />
                                         </div>
-                                        <div>
+                                        <div class="min-w-0">
                                             <TimezonePicker v-if="!editReservationTimezonesLinked" v-model="editData.ends_timezone" :timezones="timezones" label="End timezone" error-target="ends_timezone" placeholder="End timezone" />
-                                            <div v-else class="travel-touch flex items-center rounded-md border border-input px-3 text-sm text-muted-foreground" data-error-target="ends_timezone">Same as start: {{ editData.starts_timezone }}</div>
+                                            <div v-else class="travel-touch flex min-w-0 items-center rounded-md border border-input px-3 text-sm text-muted-foreground" data-error-target="ends_timezone">
+                                                <span class="truncate">Same as start: {{ editData.starts_timezone }}</span>
+                                            </div>
                                             <InputError :message="editError('ends_timezone')" />
                                         </div>
                                     </div>
@@ -1430,22 +1432,22 @@ const submitTripDetails = () => {
                                     </select>
                                     <InputError :message="editError('status')" />
                                     <template v-if="editData.type === 'flight'">
-                                        <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                            <div>
+                                        <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                            <div class="min-w-0">
                                                 <Input class="travel-touch" v-model="editData.airline" name="airline" placeholder="Airline" />
                                                 <InputError :message="editError('airline')" />
                                             </div>
-                                            <div>
+                                            <div class="min-w-0">
                                                 <Input class="travel-touch" v-model="editData.flight_number" name="flight_number" placeholder="Flight #" />
                                                 <InputError :message="editError('flight_number')" />
                                             </div>
                                         </div>
-                                        <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                            <div>
+                                        <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                            <div class="min-w-0">
                                                 <Input class="travel-touch" v-model="editData.departure_airport" name="departure_airport" placeholder="From airport" />
                                                 <InputError :message="editError('departure_airport')" />
                                             </div>
-                                            <div>
+                                            <div class="min-w-0">
                                                 <Input class="travel-touch" v-model="editData.arrival_airport" name="arrival_airport" placeholder="To airport" />
                                                 <InputError :message="editError('arrival_airport')" />
                                             </div>
@@ -1461,12 +1463,12 @@ const submitTripDetails = () => {
                                     <InputError :message="editError('location_name')" />
                                     <Input class="travel-touch" v-model="editData.address" name="address" placeholder="Address" />
                                     <InputError :message="editError('address')" />
-                                    <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                        <div>
+                                    <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                        <div class="min-w-0">
                                             <Input class="travel-touch" v-model="editData.contact_phone" name="contact_phone" placeholder="Phone" />
                                             <InputError :message="editError('contact_phone')" />
                                         </div>
-                                        <div>
+                                        <div class="min-w-0">
                                             <Input class="travel-touch" v-model="editData.contact_email" name="contact_email" placeholder="Email" />
                                             <InputError :message="editError('contact_email')" />
                                         </div>
@@ -1481,10 +1483,10 @@ const submitTripDetails = () => {
                                                 <span class="text-xs text-muted-foreground">({{ filledFlightDetailsCount(editData.flight_details) }} filled)</span>
                                             </span>
                                         </summary>
-                                        <div class="mt-4 grid gap-4">
-                                            <fieldset class="grid gap-2">
+                                        <div class="mt-4 grid min-w-0 gap-4">
+                                            <fieldset class="grid min-w-0 gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Cabin &amp; pricing</legend>
-                                                <div class="grid gap-2 min-[460px]:grid-cols-2">
+                                                <div class="grid min-w-0 gap-2 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                                                     <select v-model="editData.flight_details.cabin_class" name="flight_details.cabin_class" class="travel-touch min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm">
                                                         <option :value="null">Cabin class</option>
                                                         <option value="economy">Economy</option>
@@ -1497,11 +1499,11 @@ const submitTripDetails = () => {
                                                 <InputError :message="editError('flight_details.cabin_class') || editError('flight_details.currency')" />
                                             </fieldset>
 
-                                            <fieldset class="grid gap-3">
+                                            <fieldset class="grid min-w-0 gap-3">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Baggage allowance</legend>
-                                                <div class="grid gap-2 rounded-md bg-muted/30 p-2">
+                                                <div class="grid min-w-0 gap-2 rounded-md bg-muted/30 p-2">
                                                     <div class="text-xs font-medium">Carry-on</div>
-                                                    <div class="grid gap-2 min-[460px]:grid-cols-3">
+                                                    <div class="grid min-w-0 gap-2 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
                                                         <Input class="travel-touch" v-model="editData.flight_details.carry_on_size" name="flight_details.carry_on_size" placeholder="Size" />
                                                         <Input class="travel-touch" v-model="editData.flight_details.carry_on_weight" name="flight_details.carry_on_weight" placeholder="Weight" />
                                                         <div class="relative">
@@ -1511,9 +1513,9 @@ const submitTripDetails = () => {
                                                     </div>
                                                     <InputError :message="editError('flight_details.carry_on_size') || editError('flight_details.carry_on_weight') || editError('flight_details.carry_on_fee')" />
                                                 </div>
-                                                <div class="grid gap-2 rounded-md bg-muted/30 p-2">
+                                                <div class="grid min-w-0 gap-2 rounded-md bg-muted/30 p-2">
                                                     <div class="text-xs font-medium">Personal item / extra carry</div>
-                                                    <div class="grid gap-2 min-[460px]:grid-cols-3">
+                                                    <div class="grid min-w-0 gap-2 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
                                                         <Input class="travel-touch" v-model="editData.flight_details.personal_item_size" name="flight_details.personal_item_size" placeholder="Size" />
                                                         <Input class="travel-touch" v-model="editData.flight_details.personal_item_weight" name="flight_details.personal_item_weight" placeholder="Weight" />
                                                         <div class="relative">
@@ -1523,9 +1525,9 @@ const submitTripDetails = () => {
                                                     </div>
                                                     <InputError :message="editError('flight_details.personal_item_size') || editError('flight_details.personal_item_weight') || editError('flight_details.personal_item_fee')" />
                                                 </div>
-                                                <div class="grid gap-2 rounded-md bg-muted/30 p-2">
+                                                <div class="grid min-w-0 gap-2 rounded-md bg-muted/30 p-2">
                                                     <div class="text-xs font-medium">Checked bag</div>
-                                                    <div class="grid gap-2 min-[460px]:grid-cols-3">
+                                                    <div class="grid min-w-0 gap-2 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
                                                         <Input class="travel-touch" v-model="editData.flight_details.checked_bag_size" name="flight_details.checked_bag_size" placeholder="Size" />
                                                         <Input class="travel-touch" v-model="editData.flight_details.checked_bag_weight" name="flight_details.checked_bag_weight" placeholder="Weight" />
                                                         <div class="relative">
@@ -1535,19 +1537,19 @@ const submitTripDetails = () => {
                                                     </div>
                                                     <InputError :message="editError('flight_details.checked_bag_size') || editError('flight_details.checked_bag_weight') || editError('flight_details.checked_bag_fee')" />
                                                 </div>
-                                                <div class="grid gap-2 min-[460px]:grid-cols-2">
-                                                    <div>
+                                                <div class="grid min-w-0 gap-2 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                                    <div class="min-w-0">
                                                         <Input class="travel-touch" v-model="editData.flight_details.additional_checked_bag_fee" name="flight_details.additional_checked_bag_fee" type="number" step="0.01" min="0" placeholder="Extra checked bag fee" />
                                                         <InputError :message="editError('flight_details.additional_checked_bag_fee')" />
                                                     </div>
-                                                    <div>
+                                                    <div class="min-w-0">
                                                         <Input class="travel-touch" v-model="editData.flight_details.additional_checked_bag_allowance" name="flight_details.additional_checked_bag_allowance" placeholder="Extra checked allowance" />
                                                         <InputError :message="editError('flight_details.additional_checked_bag_allowance')" />
                                                     </div>
                                                 </div>
                                             </fieldset>
 
-                                            <fieldset class="grid gap-2">
+                                            <fieldset class="grid min-w-0 gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Travel documents</legend>
                                                 <textarea v-model="editData.flight_details.visa_requirement" name="flight_details.visa_requirement" class="min-h-20 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Visa requirement" />
                                                 <InputError :message="editError('flight_details.visa_requirement')" />
@@ -1555,23 +1557,23 @@ const submitTripDetails = () => {
                                                 <InputError :message="editError('flight_details.passport_validity_rule')" />
                                             </fieldset>
 
-                                            <fieldset class="grid gap-2">
+                                            <fieldset class="grid min-w-0 gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Connection &amp; check-in</legend>
                                                 <textarea v-model="editData.flight_details.layover_notes" name="flight_details.layover_notes" class="min-h-20 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Layover / connection notes" />
                                                 <InputError :message="editError('flight_details.layover_notes')" />
-                                                <div class="grid gap-2 min-[460px]:grid-cols-2">
-                                                    <div>
+                                                <div class="grid min-w-0 gap-2 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                                    <div class="min-w-0">
                                                         <Input class="travel-touch" v-model="editData.flight_details.online_check_in_opens" name="flight_details.online_check_in_opens" maxlength="80" placeholder="Online check-in opens" />
                                                         <InputError :message="editError('flight_details.online_check_in_opens')" />
                                                     </div>
-                                                    <div>
+                                                    <div class="min-w-0">
                                                         <Input class="travel-touch" v-model="editData.flight_details.boarding_closes" name="flight_details.boarding_closes" maxlength="80" placeholder="Boarding closes" />
                                                         <InputError :message="editError('flight_details.boarding_closes')" />
                                                     </div>
                                                 </div>
                                             </fieldset>
 
-                                            <fieldset class="grid gap-2">
+                                            <fieldset class="grid min-w-0 gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Notes</legend>
                                                 <textarea v-model="editData.flight_details.notes" name="flight_details.notes" class="min-h-24 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Meal preferences, frequent flyer numbers, lounge access, or other flight notes" />
                                                 <InputError :message="editError('flight_details.notes')" />
@@ -1641,7 +1643,7 @@ const submitTripDetails = () => {
                                                 <div v-if="reservation.flight_details.layover_notes || reservation.flight_details.online_check_in_opens || reservation.flight_details.boarding_closes" class="space-y-2">
                                                     <div class="text-xs font-medium uppercase text-muted-foreground">Connection &amp; check-in</div>
                                                     <p v-if="reservation.flight_details.layover_notes" class="whitespace-pre-line rounded-md bg-muted p-2 text-sm text-muted-foreground">{{ reservation.flight_details.layover_notes }}</p>
-                                                    <div v-if="reservation.flight_details.online_check_in_opens || reservation.flight_details.boarding_closes" class="grid gap-2 min-[460px]:grid-cols-2">
+                                                <div v-if="reservation.flight_details.online_check_in_opens || reservation.flight_details.boarding_closes" class="grid min-w-0 gap-2 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                                                         <div v-if="reservation.flight_details.online_check_in_opens" class="rounded-md border border-border p-2">
                                                             <div class="text-xs font-medium uppercase text-muted-foreground">Check-in opens</div>
                                                             <div>{{ reservation.flight_details.online_check_in_opens }}</div>
@@ -1773,24 +1775,26 @@ const submitTripDetails = () => {
                             <InputError :message="reservationForm.errors.provider_name" />
                             <Input class="travel-touch" v-model="reservationForm.booking_reference" name="booking_reference" placeholder="Confirmation number" />
                             <InputError :message="reservationForm.errors.booking_reference" />
-                            <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                <div>
+                            <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                <div class="min-w-0">
                                     <Input class="travel-touch" v-model="reservationForm.starts_at" name="starts_at" type="datetime-local" />
                                     <InputError :message="reservationForm.errors.starts_at" />
                                 </div>
-                                <div>
+                                <div class="min-w-0">
                                     <Input class="travel-touch" v-model="reservationForm.ends_at" name="ends_at" type="datetime-local" />
                                     <InputError :message="reservationForm.errors.ends_at" />
                                 </div>
                             </div>
-                            <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                <div>
+                            <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                <div class="min-w-0">
                                     <TimezonePicker v-model="reservationForm.starts_timezone" :timezones="timezones" label="Start timezone" error-target="starts_timezone" placeholder="Start timezone" />
                                     <InputError :message="reservationForm.errors.starts_timezone" />
                                 </div>
-                                <div>
+                                <div class="min-w-0">
                                     <TimezonePicker v-if="!reservationTimezonesLinked" v-model="reservationForm.ends_timezone" :timezones="timezones" label="End timezone" error-target="ends_timezone" placeholder="End timezone" />
-                                    <div v-else class="travel-touch flex items-center rounded-md border border-input px-3 text-sm text-muted-foreground" data-error-target="ends_timezone">Same as start: {{ reservationForm.starts_timezone }}</div>
+                                    <div v-else class="travel-touch flex min-w-0 items-center rounded-md border border-input px-3 text-sm text-muted-foreground" data-error-target="ends_timezone">
+                                        <span class="truncate">Same as start: {{ reservationForm.starts_timezone }}</span>
+                                    </div>
                                     <InputError :message="reservationForm.errors.ends_timezone" />
                                 </div>
                             </div>
@@ -1799,22 +1803,22 @@ const submitTripDetails = () => {
                                 Same end timezone as start
                             </label>
                             <template v-if="reservationForm.type === 'flight'">
-                                <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                    <div>
+                                <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                    <div class="min-w-0">
                                         <Input class="travel-touch" v-model="reservationForm.airline" name="airline" placeholder="Airline" />
                                         <InputError :message="reservationForm.errors.airline" />
                                     </div>
-                                    <div>
+                                    <div class="min-w-0">
                                         <Input class="travel-touch" v-model="reservationForm.flight_number" name="flight_number" placeholder="Flight #" />
                                         <InputError :message="reservationForm.errors.flight_number" />
                                     </div>
                                 </div>
-                                <div class="grid gap-3 min-[460px]:grid-cols-2">
-                                    <div>
+                                <div class="grid min-w-0 gap-3 min-[460px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                    <div class="min-w-0">
                                         <Input class="travel-touch" v-model="reservationForm.departure_airport" name="departure_airport" placeholder="From airport" />
                                         <InputError :message="reservationForm.errors.departure_airport" />
                                     </div>
-                                    <div>
+                                    <div class="min-w-0">
                                         <Input class="travel-touch" v-model="reservationForm.arrival_airport" name="arrival_airport" placeholder="To airport" />
                                         <InputError :message="reservationForm.errors.arrival_airport" />
                                     </div>
