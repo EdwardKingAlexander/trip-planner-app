@@ -1373,14 +1373,14 @@ const submitTripDetails = () => {
                 </Card>
             </section>
 
-            <section v-if="activePanel === 'reservations'" class="grid gap-4 lg:grid-cols-[1fr_24rem]">
-                <div class="grid gap-3">
+            <section v-if="activePanel === 'reservations'" class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+                <div class="grid min-w-0 gap-3">
                     <Card v-for="reservation in trip.reservations" :id="`reservation-${reservation.id}`" :key="reservation.id" tabindex="-1" class="travel-panel outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
                         <CardContent class="pt-6">
                             <template v-if="isEditing('reservation', reservation.id)">
-                                <form class="grid gap-3" @submit.prevent="patchEdit(updateReservation.url({ trip: trip.id, reservation: reservation.id }))">
+                                <form class="grid min-w-0 gap-3" @submit.prevent="patchEdit(updateReservation.url({ trip: trip.id, reservation: reservation.id }))">
                                     <FormErrorSummary :errors="editErrors" />
-                                    <select v-model="editData.type" name="type" class="travel-touch w-full rounded-md border border-input bg-transparent px-3 text-sm" @change="ensureReservationFlightDetails">
+                                    <select v-model="editData.type" name="type" class="travel-touch min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm" @change="ensureReservationFlightDetails">
                                         <option value="flight">Flight</option>
                                         <option value="lodging">Hotel / lodging</option>
                                         <option value="transport">Ground transport</option>
@@ -1420,7 +1420,7 @@ const submitTripDetails = () => {
                                         <input v-model="editReservationTimezonesLinked" type="checkbox" class="rounded border-input" />
                                         Same end timezone as start
                                     </label>
-                                    <select v-model="editData.status" name="status" class="travel-touch w-full rounded-md border border-input bg-transparent px-3 text-sm">
+                                    <select v-model="editData.status" name="status" class="travel-touch min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm">
                                         <option value="researching">Researching</option>
                                         <option value="reserved">Reserved</option>
                                         <option value="confirmed">Confirmed</option>
@@ -1471,7 +1471,7 @@ const submitTripDetails = () => {
                                             <InputError :message="editError('contact_email')" />
                                         </div>
                                     </div>
-                                    <textarea v-model="editData.notes" name="notes" class="w-full min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                                    <textarea v-model="editData.notes" name="notes" class="min-h-28 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                                     <InputError :message="editError('notes')" />
                                     <details v-if="editData.type === 'flight' && editData.flight_details" class="rounded-md border border-border p-3" :open="hasAnyFlightDetailsValue(editData.flight_details)">
                                         <summary class="cursor-pointer text-sm font-medium">
@@ -1485,7 +1485,7 @@ const submitTripDetails = () => {
                                             <fieldset class="grid gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Cabin &amp; pricing</legend>
                                                 <div class="grid gap-2 min-[460px]:grid-cols-2">
-                                                    <select v-model="editData.flight_details.cabin_class" name="flight_details.cabin_class" class="travel-touch w-full rounded-md border border-input bg-transparent px-3 text-sm">
+                                                    <select v-model="editData.flight_details.cabin_class" name="flight_details.cabin_class" class="travel-touch min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm">
                                                         <option :value="null">Cabin class</option>
                                                         <option value="economy">Economy</option>
                                                         <option value="premium_economy">Premium Economy</option>
@@ -1549,15 +1549,15 @@ const submitTripDetails = () => {
 
                                             <fieldset class="grid gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Travel documents</legend>
-                                                <textarea v-model="editData.flight_details.visa_requirement" name="flight_details.visa_requirement" class="w-full min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Visa requirement" />
+                                                <textarea v-model="editData.flight_details.visa_requirement" name="flight_details.visa_requirement" class="min-h-20 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Visa requirement" />
                                                 <InputError :message="editError('flight_details.visa_requirement')" />
-                                                <textarea v-model="editData.flight_details.passport_validity_rule" name="flight_details.passport_validity_rule" class="w-full min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Passport validity rule" />
+                                                <textarea v-model="editData.flight_details.passport_validity_rule" name="flight_details.passport_validity_rule" class="min-h-20 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Passport validity rule" />
                                                 <InputError :message="editError('flight_details.passport_validity_rule')" />
                                             </fieldset>
 
                                             <fieldset class="grid gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Connection &amp; check-in</legend>
-                                                <textarea v-model="editData.flight_details.layover_notes" name="flight_details.layover_notes" class="w-full min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Layover / connection notes" />
+                                                <textarea v-model="editData.flight_details.layover_notes" name="flight_details.layover_notes" class="min-h-20 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Layover / connection notes" />
                                                 <InputError :message="editError('flight_details.layover_notes')" />
                                                 <div class="grid gap-2 min-[460px]:grid-cols-2">
                                                     <div>
@@ -1573,7 +1573,7 @@ const submitTripDetails = () => {
 
                                             <fieldset class="grid gap-2">
                                                 <legend class="text-xs font-medium uppercase text-muted-foreground">Notes</legend>
-                                                <textarea v-model="editData.flight_details.notes" name="flight_details.notes" class="w-full min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Meal preferences, frequent flyer numbers, lounge access, or other flight notes" />
+                                                <textarea v-model="editData.flight_details.notes" name="flight_details.notes" class="min-h-24 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Meal preferences, frequent flyer numbers, lounge access, or other flight notes" />
                                                 <InputError :message="editError('flight_details.notes')" />
                                             </fieldset>
                                         </div>
@@ -1753,12 +1753,12 @@ const submitTripDetails = () => {
                         </CardContent>
                     </Card>
                 </div>
-                <Card class="travel-panel">
+                <Card class="travel-panel min-w-0">
                     <CardHeader><CardTitle class="text-base">Add Reservation</CardTitle></CardHeader>
                     <CardContent>
-                        <form class="grid gap-3" @submit.prevent="post(reservationForm, storeReservation.url(trip.id), ['title', 'provider_name', 'booking_reference', 'starts_at', 'ends_at', 'location_name', 'address', 'notes', 'airline', 'flight_number', 'departure_airport', 'arrival_airport', 'property_name', 'room_type'])">
+                        <form class="grid min-w-0 gap-3" @submit.prevent="post(reservationForm, storeReservation.url(trip.id), ['title', 'provider_name', 'booking_reference', 'starts_at', 'ends_at', 'location_name', 'address', 'notes', 'airline', 'flight_number', 'departure_airport', 'arrival_airport', 'property_name', 'room_type'])">
                             <FormErrorSummary :errors="reservationForm.errors" />
-                            <select v-model="reservationForm.type" name="type" class="travel-touch w-full rounded-md border border-input bg-transparent px-3 text-sm">
+                            <select v-model="reservationForm.type" name="type" class="travel-touch min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm">
                                 <option value="flight">Flight</option>
                                 <option value="lodging">Hotel / lodging</option>
                                 <option value="transport">Ground transport</option>
@@ -1830,7 +1830,7 @@ const submitTripDetails = () => {
                             <InputError :message="reservationForm.errors.location_name" />
                             <Input class="travel-touch" v-model="reservationForm.address" name="address" placeholder="Address" />
                             <InputError :message="reservationForm.errors.address" />
-                            <textarea v-model="reservationForm.notes" name="notes" class="w-full min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
+                            <textarea v-model="reservationForm.notes" name="notes" class="min-h-28 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes" />
                             <InputError :message="reservationForm.errors.notes" />
                             <Button type="submit" class="travel-button-primary" :disabled="reservationForm.processing">Add reservation</Button>
                         </form>

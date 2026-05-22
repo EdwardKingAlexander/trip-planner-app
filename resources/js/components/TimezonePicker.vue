@@ -32,7 +32,7 @@ function selectedValue(event: Event): string | null {
         :data-error-target="errorTarget"
         :name="errorTarget"
         :value="value"
-        class="travel-touch w-full rounded-md border border-input bg-transparent px-3 text-sm"
+        class="travel-touch min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm"
         @change="$emit('update:modelValue', selectedValue($event))"
     >
         <option value="">{{ placeholder }}</option>
