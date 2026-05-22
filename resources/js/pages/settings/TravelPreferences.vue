@@ -62,12 +62,12 @@ const submit = () => {
 
             <div class="grid gap-2">
                 <Label for="traveler_profiles">Traveler profiles</Label>
-                <textarea id="traveler_profiles" v-model="form.traveler_profiles_text" class="min-h-28 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="One traveler per line" />
+                <textarea id="traveler_profiles" v-model="form.traveler_profiles_text" class="min-h-28 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="One traveler per line" />
             </div>
 
             <div class="grid gap-2">
                 <Label for="packing_templates">Packing template items</Label>
-                <textarea id="packing_templates" v-model="form.packing_templates_text" class="min-h-36 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="One packing item per line" />
+                <textarea id="packing_templates" v-model="form.packing_templates_text" class="min-h-36 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="One packing item per line" />
             </div>
 
             <Button type="submit" class="bg-primary hover:bg-primary/90" :disabled="form.processing">

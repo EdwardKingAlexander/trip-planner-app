@@ -152,7 +152,7 @@ const bucketLabel = (bucket: string) => ({
                                 <Input v-model="form.ends_on" class="travel-touch" type="date" />
                             </div>
                             <InputError :message="form.errors.starts_on || form.errors.ends_on" />
-                            <textarea v-model="form.summary" class="min-h-24 rounded-md border border-input bg-transparent px-3 py-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes, purpose, or must-do ideas" />
+                            <textarea v-model="form.summary" class="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50" placeholder="Notes, purpose, or must-do ideas" />
                             <Button type="submit" class="travel-button-primary w-full" :disabled="form.processing">
                                 Create trip
                             </Button>
@@ -167,7 +167,7 @@ const bucketLabel = (bucket: string) => ({
                         <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input v-model="searchForm.search" class="travel-touch pl-9" placeholder="Search destinations and trip names" />
                     </div>
-                    <select v-model="searchForm.status" class="travel-touch rounded-md border border-input bg-transparent px-3 text-sm">
+                    <select v-model="searchForm.status" class="travel-touch w-full rounded-md border border-input bg-transparent px-3 text-sm">
                         <option value="">All statuses</option>
                         <option value="draft">Draft</option>
                         <option value="planned">Planned</option>
