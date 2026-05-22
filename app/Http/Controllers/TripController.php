@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Reservation;
 use App\Models\Trip;
 use App\Models\User;
 use App\Rules\TimezoneRule;
@@ -76,6 +77,7 @@ class TripController extends Controller
             'user',
             'collaborators.user',
             'days.itineraryItems.updatedBy',
+            'days.reservations.tripDays',
             'reservations.flightSegments',
             'reservations.lodgingStay',
             'reservations.flightDetails',
@@ -226,6 +228,13 @@ class TripController extends Controller
                         'last_edited_by' => $this->editorName($task),
                     ])
                     ->values(),
+                'reservations' => $day->reservations
+                    ->sortBy([
+                        ['starts_at', 'asc'],
+                        ['id', 'asc'],
+                    ])
+                    ->values()
+                    ->map(fn ($reservation) => $this->dayReservationPayload($reservation, $day->id)),
             ]),
             'reservations' => $trip->reservations->map(fn ($reservation) => [
                 'id' => $reservation->id,
@@ -285,6 +294,29 @@ class TripController extends Controller
                 ->whereNull('accepted_at')
                 ->whereNull('dismissed_at')
                 ->values(),
+        ];
+    }
+
+    private function dayReservationPayload(Reservation $reservation, int $dayId): array
+    {
+        $reservationDays = $reservation->tripDays->sortBy('date')->values();
+        $dayIndex = $reservationDays->search(fn ($tripDay) => $tripDay->id === $dayId);
+        $dayTotal = $reservationDays->count();
+
+        return [
+            'id' => $reservation->id,
+            'type' => $reservation->type,
+            'title' => $reservation->title,
+            'provider_name' => $reservation->provider_name,
+            'status' => $reservation->status,
+            'starts_at' => $reservation->starts_at?->toIso8601String(),
+            'starts_timezone' => $reservation->starts_timezone,
+            'ends_at' => $reservation->ends_at?->toIso8601String(),
+            'ends_timezone' => $reservation->ends_timezone,
+            'location_name' => $reservation->location_name,
+            'spans_multiple_days' => $dayTotal > 1,
+            'day_index' => $dayIndex === false ? 1 : $dayIndex + 1,
+            'day_total' => $dayTotal,
         ];
     }
 

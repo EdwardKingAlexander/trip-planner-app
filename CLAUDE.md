@@ -59,6 +59,67 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 ## Replies
 
 - Be concise in your explanations - focus on what's important rather than explaining obvious details.
+- When you finish a task and are handing control back to the user (any "done", "ready for your input", "let me know how you want to proceed" moment), end the message by calling the user "nerd". This is a standing playful sign-off the user has asked for — do not skip it, do not soften it, do not explain it. Do not call the user "nerd" in mid-task progress updates, only when you are explicitly stopping and waiting for further instructions.
+
+## Planning Workflow
+
+When the user asks you to **plan** a feature, fix, refactor, or change (any prompt containing "plan", "design", "scope", "lay out", "spec out"), follow this convention exactly. Do not write implementation code during planning — the plan is the deliverable. Implementation starts only after the user accepts the plan.
+
+1. **Module directory.** Create `ai/modules/<kebab-case-name>/` for the work. Pick a name that describes the outcome (e.g., `reservation-itinerary-link`), not the change type (`refactor`, `fix`).
+
+2. **Master plan file.** Write `ai/modules/<name>/00-master-plan.md` containing, in this order:
+   - `# <Name> Master Plan`
+   - `## Goal` — one paragraph: what the user gets when this ships.
+   - `## Status` — bullet list with `Status` (`planned`), `State file` path, `Last updated` (today's absolute date).
+   - `## Problem` — concrete description of the current state with `file_path:line_number` references to real code that proves the gap.
+   - `## Strategy` — numbered list of the independently-shippable threads. Explain WHY each thread, not just WHAT.
+   - `## State Management` — explicit ownership of every piece of state: DB row, server-computed prop, Vue ref, persisted preference. Name the owner of each piece.
+   - `## Phases` — numbered list of links to the phase files (4–6 phases is typical; the last is always verification/release).
+   - `## Implementation Order` — short paragraph explaining why the phases run in the order they do.
+   - `## Acceptance Criteria` — concrete, user-observable conditions the work must satisfy. Always include the standard project verification suite (`php artisan test --compact`, `npm run lint:check`, `npm run types:check`, `npm run build`, `vendor/bin/pint --dirty --format agent`, and `php artisan wayfinder:generate --with-form --no-interaction` when routes change).
+   - `## Decisions Locked In (planning pass — <date>)` — every UX/data/scope choice frozen by clarifying questions, with the rationale.
+   - `## Out Of Scope` — explicit list of related-but-deferred work, so future readers know it was considered and excluded.
+
+3. **Phase files.** Split the work into 4–6 numbered phase files (`01-...md`, `02-...md`, …). Each phase file uses this skeleton:
+   - `# Phase NN - <Phase Name>`
+   - `## Goal` — single paragraph.
+   - `## Status` — bullet list: `Status`, `Owner`, `Depends on`, `Blocker`.
+   - `## Audit Inputs` — `file_path:line_number` references to current code the phase will touch.
+   - Frozen contract sections appropriate to the phase: `## Migration (frozen)`, `## Model (frozen)`, `## Controller Wiring (frozen)`, `## TypeScript Type (frozen)`, etc. Include real code or schema where useful so a future implementer can build against a fixed agreement.
+   - `## Deliverables` — concrete files created or changed.
+   - `## Acceptance Criteria` — phase-local checks.
+   - `## Risks` — anything that could go wrong, plus mitigation.
+   - `## Out Of Scope` — what this phase explicitly does NOT do.
+   - The final phase is always backfill/verification/release: it runs the full project verification suite, walks through a manual workflow check, and updates `ai/state/<name>.json` with the verification command outputs.
+
+4. **State file.** Create `ai/state/<name>.json` capturing the durable state of the module:
+   ```json
+   {
+     "module": "<name>",
+     "status": "planned",
+     "last_updated": "<YYYY-MM-DD>",
+     "scope_amendments": [],
+     "current_phase": { "id": "01-...", "status": "planned", "next_action": "..." },
+     "phase_status": [ { "id": "01-...", "file": "ai/modules/<name>/01-....md", "status": "planned" }, ... ],
+     "audit_findings": [ { "file": "...", "lines": "...", "finding": "..." } ],
+     "decisions_locked_in": [ "..." ],
+     "open_questions": [ "..." ],
+     "endpoint_contract": { ... },
+     "state_owners": { ... },
+     "ux_rules": { ... },
+     "verification": [],
+     "handoff": { "summary": "...", "next_agent_steps": [ "..." ] }
+   }
+   ```
+   Implementers update this file as phases move from `planned` → `in_progress` → `implemented` → `verified`. The `verification` array fills in only after the gate is actually run.
+
+5. **README index.** Add a one-line entry to `ai/modules/README.md` linking the new module, mirroring the existing module entries (heading + one-paragraph description + state file path).
+
+6. **Clarify before planning.** If there is any ambiguity in scope, UX, data model, multi-day behavior, backfill strategy, or backwards compatibility, ask clarifying questions BEFORE writing the plan. Use the `AskUserQuestion` tool when there are 2–4 mutually-exclusive choices to make. Lock the answers into the master plan's `Decisions Locked In` section and the state file's `decisions_locked_in` array.
+
+7. **State management is non-negotiable.** Every plan must answer, in the `State Management` section of the master plan AND in `state_owners` of the state file: where does each piece of state live, who writes to it, who reads from it, and how is it kept consistent across DB / server / client / persisted preferences?
+
+8. **Reference real code.** Every audit finding, every "current state" claim in the Problem section, and every wiring point in a phase file must cite a real `file_path:line_number`. Never describe state of the codebase abstractly.
 
 === boost rules ===
 

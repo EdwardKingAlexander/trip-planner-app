@@ -12,8 +12,15 @@ class TravelPreferenceController extends Controller
 {
     public function edit(Request $request): Response
     {
+        $preference = $request->user()->travelPreference;
+
         return Inertia::render('settings/TravelPreferences', [
-            'preference' => $request->user()->travelPreference()->firstOrCreate([]),
+            'preference' => [
+                'home_timezone' => $preference?->home_timezone ?? config('app.timezone'),
+                'default_currency' => $preference?->default_currency ?? 'USD',
+                'traveler_profiles' => $preference?->traveler_profiles,
+                'packing_templates' => $preference?->packing_templates,
+            ],
         ]);
     }
 
@@ -34,6 +41,19 @@ class TravelPreferenceController extends Controller
         ]);
 
         return back()->with('success', 'Travel preferences updated.');
+    }
+
+    public function updateTimezone(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'timezone' => ['required', 'timezone'],
+        ]);
+
+        $request->user()->travelPreference()->updateOrCreate([], [
+            'home_timezone' => $validated['timezone'],
+        ]);
+
+        return back()->with('success', 'Timezone updated.');
     }
 
     private function lines(string $value): array

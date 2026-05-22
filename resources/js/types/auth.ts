@@ -11,6 +11,11 @@ export type User = {
 
 export type Auth = {
     user: User;
+    timezone: {
+        value: string;
+        default: string;
+        is_default: boolean;
+    };
 };
 
 export type TwoFactorConfigContent = {

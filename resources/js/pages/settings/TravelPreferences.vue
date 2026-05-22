@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
+import TimezonePicker from '@/components/TimezonePicker.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +24,9 @@ const form = useForm({
     packing_templates_text: (props.preference.packing_templates ?? []).join('\n'),
 });
 
+const page = usePage();
+const timezones = computed(() => (Array.isArray(page.props.timezones) ? page.props.timezones as string[] : []));
+
 const submit = () => {
     form.patch('/settings/travel', { preserveScroll: true });
 };
@@ -39,7 +44,13 @@ const submit = () => {
         <form class="space-y-6" @submit.prevent="submit">
             <div class="grid gap-2">
                 <Label for="home_timezone">Home timezone</Label>
-                <Input id="home_timezone" v-model="form.home_timezone" placeholder="America/Denver" />
+                <TimezonePicker
+                    id="home_timezone"
+                    v-model="form.home_timezone"
+                    :timezones="timezones"
+                    placeholder="Select home timezone"
+                    error-target="home_timezone"
+                />
                 <InputError :message="form.errors.home_timezone" />
             </div>
 

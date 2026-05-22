@@ -48,6 +48,7 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $request->user(),
+                'timezone' => fn () => $this->timezonePayload($request),
             ],
             'theme' => $this->theme($request),
             'timezones' => fn () => Cache::rememberForever('inertia.timezones', fn (): array => TimezoneLookup::identifiers()),
@@ -71,6 +72,21 @@ class HandleInertiaRequests extends Middleware
         }
 
         return Theme::default()->value;
+    }
+
+    /**
+     * @return array{value: string, default: string, is_default: bool}
+     */
+    private function timezonePayload(Request $request): array
+    {
+        $preference = $request->user()?->travelPreference;
+        $defaultTimezone = config('app.timezone');
+
+        return [
+            'value' => $preference?->home_timezone ?? $defaultTimezone,
+            'default' => $defaultTimezone,
+            'is_default' => $preference === null,
+        ];
     }
 
     /**

@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Concerns\TracksAuthor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ItineraryItem extends Model
 {
@@ -45,10 +44,5 @@ class ItineraryItem extends Model
     public function tripDay(): BelongsTo
     {
         return $this->belongsTo(TripDay::class);
-    }
-
-    public function reservation(): HasOne
-    {
-        return $this->hasOne(Reservation::class);
     }
 }

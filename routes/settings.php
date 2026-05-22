@@ -24,6 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::inertia('settings/appearance', 'settings/Appearance')->name('appearance.edit');
     Route::patch('settings/theme', [ThemeController::class, 'update'])->name('settings.theme.update');
+    Route::patch('settings/timezone', [TravelPreferenceController::class, 'updateTimezone'])->name('settings.timezone.update');
     Route::get('settings/travel', [TravelPreferenceController::class, 'edit'])->name('travel-preferences.edit');
     Route::patch('settings/travel', [TravelPreferenceController::class, 'update'])->name('travel-preferences.update');
 });

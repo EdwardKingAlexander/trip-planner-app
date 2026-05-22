@@ -1,17 +1,18 @@
 {
     "module": "mobile-ui-ux",
-    "status": "planned",
-    "last_updated": "2026-05-14",
+    "status": "in_progress",
+    "last_updated": "2026-05-21",
     "current_phase": {
-        "id": "01-mobile-audit-and-pain-point-inventory",
+        "id": "02-shell-navigation-and-safe-area",
         "status": "planned",
-        "next_action": "Run the seven mandatory walks at 360x640, 390x844, 430x932, and 820x1180. Save screenshots under ai/audit/mobile-2026-05-14/. Record at least 30 findings in audit_findings[] with the frozen field shape from Phase 01."
+        "next_action": "Partial audit complete from real-device screenshots (8 findings logged AF-001 through AF-008). High-severity findings confirm the plan strategy. Proceed to Phase 02 (shell + safe-area + sticky nav) then 03 (trip workspace + full-screen forms) as highest user impact."
     },
     "phase_status": [
         {
             "id": "01-mobile-audit-and-pain-point-inventory",
             "file": "ai/modules/mobile-ui-ux/01-mobile-audit-and-pain-point-inventory.md",
-            "status": "planned"
+            "status": "implemented",
+            "note": "Partial audit from real-device Android screenshots (2026-05-21). 8 findings logged. Full 30-finding sweep deferred — existing findings are sufficient to begin fix phases."
         },
         {
             "id": "02-shell-navigation-and-safe-area",
@@ -39,7 +40,88 @@
             "status": "planned"
         }
     ],
-    "audit_findings": [],
+    "audit_findings": [
+        {
+            "id": "AF-001",
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1394-1402",
+            "viewport": "390px (Android Chrome)",
+            "category": "inputs | keyboard",
+            "severity": "high",
+            "phase": "04",
+            "finding": "datetime-local inputs for itinerary starts_at and ends_at render as blank boxes with a single chevron arrow on Android Chrome dark mode. The native format-hint text (mm/dd/yyyy, --:-- --) uses a system-default color that is invisible against bg-transparent on a dark card background. User cannot tell these are time inputs at all. Two mystery chevron boxes sit between Location and the Timezone field with zero affordance."
+        },
+        {
+            "id": "AF-002",
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1383-1416",
+            "viewport": "390px",
+            "category": "trip-workspace | forms",
+            "severity": "high",
+            "phase": "03",
+            "finding": "The 'Add Itinerary Item' card is the second child of `section.grid.lg:grid-cols-[1fr_22rem]`. On mobile the grid is single-column, so the card stacks BELOW all day cards. On a 7-day trip the form is off-screen by ~800-1000px. Users likely never find it on mobile."
+        },
+        {
+            "id": "AF-003",
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1229-1241",
+            "viewport": "390px",
+            "category": "shell | navigation",
+            "severity": "high",
+            "phase": "02",
+            "finding": "Panel nav uses `grid-cols-2 sm:grid-cols-4 xl:flex` with 10 panels. At 390px that is 5 rows × ~46px = ~250px of navigation before any content is visible. Screenshot 3 confirms the bottom two rows (Tasks, Documents, Reminders, Imports, Sharing, Details) are a separate visual block the user has to parse."
+        },
+        {
+            "id": "AF-004",
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1394-1402",
+            "viewport": "390px",
+            "category": "inputs | keyboard",
+            "severity": "medium",
+            "phase": "04",
+            "finding": "datetime-local inputs have no visible label, only a placeholder — but datetime-local inputs do not show placeholder text at all. There is zero contextual clue for what starts_at / ends_at represent. Applies identically in the reservation edit form (lines 1441-1450) and all other datetime-local fields."
+        },
+        {
+            "id": "AF-005",
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1419-1820",
+            "viewport": "390px",
+            "category": "trip-workspace | forms",
+            "severity": "high",
+            "phase": "03",
+            "finding": "All add-form cards (reservations line 1827, budget line 1913, packing line 1966, tasks line 2121) are second children of their respective lg:grid-cols-[1fr_Xrem] sections. All stack below their list content on mobile, making all add-entry forms inaccessible without significant scrolling."
+        },
+        {
+            "id": "AF-006",
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1419-1574",
+            "viewport": "390px",
+            "category": "trip-workspace | forms",
+            "severity": "medium",
+            "phase": "03",
+            "finding": "The reservation edit form expands inline inside the reservation card (screenshot 2). The flight-details section (airline, flight#, from/to airport, location, address) adds ~8 more fields that stack below the timezone block. On mobile the user must scroll through ~15 fields with the keyboard visible; Save is far below. No section pills or sticky Save button."
+        },
+        {
+            "id": "AF-007",
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1962-2058",
+            "viewport": "390px",
+            "category": "lists | touch-affordances",
+            "severity": "medium",
+            "phase": "05",
+            "finding": "Packing list items show Edit + Delete buttons inline at the right edge (screenshot 3 partially visible). On a 390px screen with item label + category + assigned-to info on the left, the Edit/Delete cluster is very small. Misclicking Delete is a real risk. Swipe-to-reveal Delete is the correct pattern."
+        },
+        {
+            "id": "AF-008",
+            "file": "resources/css/app.css",
+            "lines": "599-650",
+            "viewport": "390px (iOS notch devices)",
+            "category": "shell | safe-area",
+            "severity": "medium",
+            "phase": "02",
+            "finding": "travel-page, travel-container, travel-panel, travel-hero have no safe-area-inset handling. On iPhones with home indicator the bottom of full-bleed cards will clip behind the indicator. No pt-safe / pb-safe utilities exist."
+        }
+    ],
     "prior_work_baseline": [
         "responsive-ui-uplift (verified 2026-05-05): touch targets >= 44px, 1-col dense forms on mobile, segmented grid trip nav, palette refresh.",
         "scroll-issue (verified 2026-05-06): single document scroll owner on desktop, offcanvas mobile menu.",

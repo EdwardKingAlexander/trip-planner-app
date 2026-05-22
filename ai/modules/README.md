@@ -68,6 +68,14 @@ Use [trip-timezones](trip-timezones/00-master-plan.md) to fix the trip envelope'
 
 Use [reservation-create](reservation-create/00-master-plan.md) to fix "I cannot make another reservation" — the Add Reservation form on `Trips/Show.vue` renders an `InputError` only for `title` while the server validates 30+ fields, so any other rule failure (freeform timezone mistyped, `ends_at` before `starts_at`, oversized booking_reference, bad email) produces a silent 422 the user has no way to see. Adds a `FormErrorSummary`, per-input `InputError`s on both add and edit forms, a `scrollToFirstError` helper, a 422 toast, a constrained `TimezoneSelect` picker that replaces the freeform timezone Inputs, a timezone-aware `EndsAtAfterStarts` rule, and a global 419 session-expired toast. Its durable state file is `ai/state/reservation-create.json`.
 
+## Reservation–Itinerary Link
+
+Use [reservation-itinerary-link](reservation-itinerary-link/00-master-plan.md) to make every reservation appear on the itinerary tab on every day it covers. Drops the dead `reservations.itinerary_item_id` column, adds a `trip_day_reservation` pivot, syncs day spans inside the existing reservation transaction (with a lodging check-out-day exclusion), serializes a per-day reservation list, renders read-only reservation entries under each day card (multi-day "Night N of M" labels included), and backfills existing data via migration. Its durable state file is `ai/state/reservation-itinerary-link.json`.
+
+## User Timezone Preference
+
+Use [user-timezone-preference](user-timezone-preference/00-master-plan.md) to detect each authenticated user's browser timezone, let them override it from the account dropdown using the full IANA timezone list, persist the choice to travel preferences, and share the selected app timezone across Inertia pages. Its durable state file is `ai/state/user-timezone-preference.json`.
+
 ## State Tracking
 
 Use [STATE.md](STATE.md) as the single source of truth for implementation status. Each phase file also has a phase-local status block that should be updated as work moves from planning to implementation, verification, and completion.

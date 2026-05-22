@@ -1,6 +1,6 @@
 # Vacation Plan App Build State
 
-Last updated: 2026-05-12
+Last updated: 2026-05-22
 
 ## Current Phase
 
@@ -34,6 +34,7 @@ Last updated: 2026-05-12
 | 2026-05-04 | Implement print, JSON export, ICS export, global search, and travel preferences | Completes production-readiness features without adding external API dependencies |
 | 2026-05-07 | Add five account-level visual themes with cookie, localStorage, and DB persistence | Keeps theme selection immediate on the client while preserving SSR first paint and cross-device preferences |
 | 2026-05-07 | Keep Reservations, Packing, Documents, and Sharing as in-trip tabs; use Trips, Search, Calendar, Reminders, and Notifications as global nav | Prevents broken sidebar destinations and gives every global item a distinct route |
+| 2026-05-22 | Link reservations to itinerary days through `trip_day_reservation` instead of mirror itinerary rows | Keeps reservations as the source of truth while making them visible on every covered trip day |
 
 ## Open Questions
 
@@ -69,3 +70,4 @@ When implementation begins:
 - Live flight status remains provider-ready but not connected to an external aviation API because no provider/API key has been selected.
 - Confirmation import supports pasted text review. Calendar import supports pasted ICS text review and commit.
 - Packing attribution module is verified: packing items now expose who added them, who is assigned to pack them, targeted pack/unpack notifications for the adder, per-assignee progress segments, and a per-trip "Mine to pack" filter.
+- Reservation itinerary link module is verified: reservations now backfill and sync to trip days, render as read-only itinerary cards with multi-day labels, and deep-link back to their editable Reservations tab cards.

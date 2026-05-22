@@ -208,11 +208,37 @@ class TripReservationController extends Controller
 
         if ($reservation->type === 'flight' && $hasAnyFlightDetail) {
             $reservation->flightDetails()->updateOrCreate([], $this->cleanFlightDetailsPayload($flightDetails));
+        } else {
+            $reservation->flightDetails()->delete();
+        }
+
+        $this->syncTripDaySpan($reservation);
+    }
+
+    private function syncTripDaySpan(Reservation $reservation): void
+    {
+        $trip = $reservation->trip;
+
+        if ($trip === null) {
+            $reservation->tripDays()->sync([]);
 
             return;
         }
 
-        $reservation->flightDetails()->delete();
+        $dates = $reservation->computeOverlappingDates($trip);
+
+        if ($dates === []) {
+            $reservation->tripDays()->sync([]);
+
+            return;
+        }
+
+        $tripDayIds = $trip->days()
+            ->whereIn('date', array_map(fn ($date) => $date->toDateString(), $dates))
+            ->pluck('id')
+            ->all();
+
+        $reservation->tripDays()->sync($tripDayIds);
     }
 
     private function cleanFlightDetailsPayload(array $payload): array

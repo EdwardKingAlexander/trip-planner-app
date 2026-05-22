@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TripDay extends Model
@@ -35,5 +36,12 @@ class TripDay extends Model
     public function itineraryItems(): HasMany
     {
         return $this->hasMany(ItineraryItem::class)->orderBy('sort_order')->orderBy('starts_at');
+    }
+
+    public function reservations(): BelongsToMany
+    {
+        return $this->belongsToMany(Reservation::class, 'trip_day_reservation')
+            ->orderBy('reservations.starts_at')
+            ->orderBy('reservations.id');
     }
 }

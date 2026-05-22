@@ -1,0 +1,201 @@
+{
+    "module": "reservation-itinerary-link",
+    "status": "verified",
+    "last_updated": "2026-05-22",
+    "scope_amendments": [],
+    "current_phase": {
+        "id": "05-backfill-and-verification",
+        "status": "verified",
+        "next_action": "Module implemented and verified. Remaining follow-up is optional manual browser walkthrough on a real trip if visual confirmation is desired."
+    },
+    "phase_status": [
+        {
+            "id": "01-data-model-and-pivot",
+            "file": "ai/modules/reservation-itinerary-link/01-data-model-and-pivot.md",
+            "status": "verified"
+        },
+        {
+            "id": "02-controller-and-sync",
+            "file": "ai/modules/reservation-itinerary-link/02-controller-and-sync.md",
+            "status": "verified"
+        },
+        {
+            "id": "03-trip-serializer-merge",
+            "file": "ai/modules/reservation-itinerary-link/03-trip-serializer-merge.md",
+            "status": "verified"
+        },
+        {
+            "id": "04-frontend-itinerary-rendering",
+            "file": "ai/modules/reservation-itinerary-link/04-frontend-itinerary-rendering.md",
+            "status": "verified"
+        },
+        {
+            "id": "05-backfill-and-verification",
+            "file": "ai/modules/reservation-itinerary-link/05-backfill-and-verification.md",
+            "status": "verified"
+        }
+    ],
+    "audit_findings": [
+        {
+            "file": "database/migrations/2026_05_04_000001_create_trip_management_tables.php",
+            "lines": "75-100",
+            "finding": "reservations.itinerary_item_id is declared (line 78) as a nullable foreignId on itinerary_items with nullOnDelete, but no code path ever assigns it. The column is dead weight and is dropped in Phase 01."
+        },
+        {
+            "file": "app/Http/Controllers/TripReservationController.php",
+            "lines": "22-28,46-52,160-216",
+            "finding": "store() and update() already wrap reservation writes in DB::transaction. syncReservationDetails() is the existing junction-table sync (flight_segments, lodging_stays, flight_details). Phase 02 appends syncTripDaySpan() to this method so pivot writes ride the same transaction with zero possibility of drift."
+        },
+        {
+            "file": "app/Models/Reservation.php",
+            "lines": "15-35,51-54",
+            "finding": "Fillable contains 'itinerary_item_id'; itineraryItem() BelongsTo is defined. Both are removed in Phase 01 in favor of tripDays() BelongsToMany."
+        },
+        {
+            "file": "app/Models/ItineraryItem.php",
+            "lines": "50-53",
+            "finding": "reservation() HasOne is defined but never called by any meaningful code path. Removed in Phase 01."
+        },
+        {
+            "file": "app/Http/Controllers/TripController.php",
+            "lines": "73-82,201-251",
+            "finding": "Trip serializer eager-loads reservations.* via the top-level chain and renders the Reservations tab from there. Phase 03 adds parallel days.reservations eager loads plus a smaller per-day card shape on each days[*] entry. The top-level trip.reservations payload is untouched."
+        },
+        {
+            "file": "resources/js/pages/Trips/Show.vue",
+            "lines": "1223-1286,1594+",
+            "finding": "Itinerary tab iterates day.items (ItineraryItem rows only). Reservations live in a separate tab block starting near line 1594. Phase 04 inserts a new day.reservations render block between day.items and day.tasks; reservations stay non-editable on the itinerary tab and deep-link to the Reservations tab card via id=reservation-{id}."
+        },
+        {
+            "file": "database/migrations/2026_05_19_010530_add_timezones_to_trips_table.php",
+            "lines": "full file",
+            "finding": "trips.destination_timezone exists. It is the primary timezone for the day-span computation in Reservation::computeOverlappingDates(), with a fallback chain to reservation.starts_timezone then UTC."
+        },
+        {
+            "file": "app/Services/NotificationDeepLinkResolver.php",
+            "lines": "full file",
+            "finding": "Existing focus-target convention for jumping to a specific entity on the trip page. Phase 04's openReservation() helper mirrors this pattern but for an in-page tab switch."
+        }
+    ],
+    "decisions_locked_in": [
+        "Reservations ARE itinerary entries. No auto-created mirror ItineraryItem rows. The itinerary tab queries reservations directly via the trip_day_reservation pivot.",
+        "Multi-day rendering = every day in the date range. Lodging excludes the check-out day (you sleep on nights 12-14, not on day 15). Encoded in Reservation::computeOverlappingDates().",
+        "Backfill via migration. A second migration walks every existing reservation with a non-null starts_at and inserts its pivot rows using the same computeOverlappingDates() helper that the runtime sync uses.",
+        "Itinerary-tab reservation entries are read-only. Editing happens on the Reservations tab. The 'Open' button on a day-card entry deep-links to the matching reservation card via id and tabindex focus.",
+        "The dead reservations.itinerary_item_id column is dropped, not kept as a legacy nullable. Both Eloquent relations (Reservation::itineraryItem, ItineraryItem::reservation) are removed.",
+        "Timezone fallback chain for the day-span calc: trips.destination_timezone -> reservation.starts_timezone -> UTC. Matches the convention set by the trip-timezones module.",
+        "No new activity event type. Existing reservation.created / reservation.updated / reservation.deleted events already cover live-collaboration refresh via activity_version polling.",
+        "Pivot table name: trip_day_reservation. The Eloquent belongsToMany relations declare the table name explicitly to match the locked migration contract.",
+        "day_index / day_total / spans_multiple_days computed server-side and shipped on each per-day reservation card payload. Frontend never re-derives.",
+        "Within a single day, day.reservations sort by starts_at ASC then id ASC. Items + reservations are NOT interleaved by time in this module; they render as two grouped blocks (items first, then reservations). Interleaving is a follow-up if requested.",
+        "Trip timezone changes after the fact do not auto-resync pivots. The user must touch each reservation to trigger a resync. Documented limitation; revisit only if it surfaces in practice."
+    ],
+    "open_questions": [],
+    "endpoint_contract": {
+        "store": {
+            "method": "POST",
+            "url": "/trips/{trip}/reservations",
+            "name": "trips.reservations.store",
+            "change": "Inside the existing DB::transaction, after syncReservationDetails() returns, syncTripDaySpan() runs. The pivot rows always commit atomically with the reservation row."
+        },
+        "update": {
+            "method": "PATCH",
+            "url": "/trips/{trip}/reservations/{reservation}",
+            "name": "trips.reservations.update",
+            "change": "Same as store. Updates that shrink the date span call $reservation->tripDays()->sync($ids) (NOT syncWithoutDetaching) so abandoned day rows are removed."
+        },
+        "destroy": {
+            "method": "DELETE",
+            "url": "/trips/{trip}/reservations/{reservation}",
+            "name": "trips.reservations.destroy",
+            "change": "No controller change. Pivot rows cascade via FK cascadeOnDelete on trip_day_reservation.reservation_id."
+        },
+        "show_payload": {
+            "method": "GET",
+            "url": "/trips/{trip}",
+            "name": "trips.show",
+            "change": "days[*] gains a 'reservations' array. Shape: { id, type, title, provider_name, status, starts_at, starts_timezone, ends_at, ends_timezone, location_name, spans_multiple_days, day_index, day_total }. Sorted by starts_at ASC then id ASC. Top-level trip.reservations payload is unchanged."
+        }
+    },
+    "state_owners": {
+        "pivot_truth": "trip_day_reservation table. Unique on (trip_day_id, reservation_id). Cascade-delete on both FKs.",
+        "date_span_logic": "Reservation::computeOverlappingDates(Trip $trip) — the single location for the lodging exclusion and the timezone fallback chain. Called by the runtime sync (Phase 02) and the backfill migration (Phase 05).",
+        "per_day_reservation_list": "Server-computed in TripController::show. Emitted as days[*].reservations. Sorted server-side. Frontend never re-derives.",
+        "top_level_reservation_list": "Unchanged. trip.reservations remains the source for the Reservations tab card list.",
+        "itinerary_tab_render_state": "Vue template iterates day.reservations after day.items. No local form state. No editable controls.",
+        "deep_link_focus_state": "openReservation(id) helper in Trips/Show.vue. Switches activePanel to 'reservations', then reuses focusDeepLinkedElement() to scroll and focus #reservation-{id}. Matches the notification-deep-links convention."
+    },
+    "ux_rules": {
+        "day_card_layout": "Reservation entries render below day.items and above day.tasks (when present). Dashed border + muted background + 'Reservation' badge distinguish them from free-form items.",
+        "type_icons": "Lucide icons per type: flight=Plane, lodging=BedDouble, transport=Car, activity=Ticket, dining=Utensils, default=CalendarClock.",
+        "multi_day_label": "Lodging entries show 'Night N of M'; non-lodging multi-day entries show 'Day N of M'. Hidden when day_total === 1.",
+        "open_button": "Single 'Open' button per entry. No Edit, no Delete on the itinerary tab. Click switches to the Reservations tab and scrolls/focuses the matching card.",
+        "empty_state": "The day-card empty-state guard becomes v-if=\"day.items.length || day.tasks.length || day.reservations.length\". A day with only a reservation hides the empty state.",
+        "unscheduled_reservations": "Reservations with starts_at = null produce zero pivot rows and appear on zero itinerary day cards. They remain visible on the Reservations tab. This is intentional.",
+        "shared_trip_attribution": "Itinerary-tab reservation entries do NOT show 'Last edited by'. The full Reservations tab card already exposes this."
+    },
+    "verification": [
+        {
+            "command": "php artisan migrate --no-interaction",
+            "result": "passed",
+            "notes": "Ran 2026_05_22_021558_create_trip_day_reservation_table and 2026_05_22_021603_backfill_reservation_trip_day_links successfully."
+        },
+        {
+            "command": "php artisan test --compact tests/Unit/ReservationDateSpanTest.php",
+            "result": "passed",
+            "notes": "5 tests / 5 assertions."
+        },
+        {
+            "command": "php artisan test --compact --filter=ReservationItineraryLink",
+            "result": "passed",
+            "notes": "6 tests / 35 assertions."
+        },
+        {
+            "command": "php artisan test --compact tests/Feature/TripManagementTest.php tests/Feature/ReservationCreateErrorsTest.php tests/Feature/ReservationCrossTimezoneTest.php tests/Feature/FlightDetailsTest.php",
+            "result": "passed",
+            "notes": "38 tests / 218 assertions."
+        },
+        {
+            "command": "php artisan test --compact",
+            "result": "passed",
+            "notes": "177 tests / 827 assertions."
+        },
+        {
+            "command": "php artisan wayfinder:generate --with-form --no-interaction",
+            "result": "passed",
+            "notes": "Generated actions and routes."
+        },
+        {
+            "command": "npm run types:check",
+            "result": "passed",
+            "notes": "vue-tsc --noEmit passed."
+        },
+        {
+            "command": "npm run lint:check",
+            "result": "passed",
+            "notes": "eslint . passed."
+        },
+        {
+            "command": "npm run build",
+            "result": "passed",
+            "notes": "vite build passed."
+        },
+        {
+            "command": "vendor/bin/pint --dirty --format agent",
+            "result": "passed",
+            "notes": "Final run passed with no dirty PHP formatting changes."
+        },
+        {
+            "command": "Get-ChildItem app,routes,tests,resources/js -Recurse -File | Select-String ...",
+            "result": "passed",
+            "notes": "No runtime references remain to itinerary_item_id, Reservation::itineraryItem, or ItineraryItem::reservation."
+        }
+    ],
+    "handoff": {
+        "summary": "Implemented and verified. Reservations now sync to trip days through trip_day_reservation, existing reservations were backfilled locally, trip show payload emits days[*].reservations, and the itinerary tab renders read-only reservation cards with Open deep-links to the Reservations tab.",
+        "next_agent_steps": [
+            "Optional: perform the Phase 05 manual browser workflow on a real trip to visually confirm the day-card rendering and smooth-scroll focus behavior.",
+            "Known limitation remains: trip timezone changes after reservations exist do not automatically resync pivots until each reservation is edited."
+        ]
+    }
+}

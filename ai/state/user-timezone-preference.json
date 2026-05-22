@@ -1,0 +1,128 @@
+{
+  "module": "user-timezone-preference",
+  "status": "verified",
+  "last_updated": "2026-05-22",
+  "scope_amendments": [],
+  "current_phase": {
+    "id": "04-tests-and-verification",
+    "status": "verified",
+    "next_action": "No remaining action; implementation and verification are complete."
+  },
+  "phase_status": [
+    {
+      "id": "01-shared-contract-and-endpoint",
+      "file": "ai/modules/user-timezone-preference/01-shared-contract-and-endpoint.md",
+      "status": "verified"
+    },
+    {
+      "id": "02-dropdown-picker-and-detection",
+      "file": "ai/modules/user-timezone-preference/02-dropdown-picker-and-detection.md",
+      "status": "verified"
+    },
+    {
+      "id": "03-settings-page-alignment",
+      "file": "ai/modules/user-timezone-preference/03-settings-page-alignment.md",
+      "status": "verified"
+    },
+    {
+      "id": "04-tests-and-verification",
+      "file": "ai/modules/user-timezone-preference/04-tests-and-verification.md",
+      "status": "verified"
+    }
+  ],
+  "audit_findings": [
+    {
+      "file": "app/Http/Middleware/HandleInertiaRequests.php",
+      "lines": "44-53",
+      "finding": "Inertia already shares auth.user and the canonical timezone list, but no app-wide selected timezone metadata."
+    },
+    {
+      "file": "app/Http/Controllers/Settings/TravelPreferenceController.php",
+      "lines": "20-36",
+      "finding": "Travel preferences persist home_timezone only through the full settings form."
+    },
+    {
+      "file": "resources/js/components/UserMenuContent.vue",
+      "lines": "36-43",
+      "finding": "User dropdown only links to Settings and has no timezone control."
+    },
+    {
+      "file": "resources/js/pages/settings/TravelPreferences.vue",
+      "lines": "40-43",
+      "finding": "Travel settings use a freeform timezone input instead of a complete dropdown."
+    }
+  ],
+  "decisions_locked_in": [
+    "Use user_travel_preferences.home_timezone as the durable app-wide timezone preference.",
+    "Only auto-save browser detection while the server reports the preference is default-backed.",
+    "Place the manual timezone selector in the existing user dropdown.",
+    "Reuse TimezoneLookup::identifiers() as the complete timezone option source.",
+    "Add a focused endpoint that updates only home_timezone."
+  ],
+  "open_questions": [],
+  "endpoint_contract": {
+    "method": "PATCH",
+    "uri": "/settings/timezone",
+    "route_name": "settings.timezone.update",
+    "payload": {
+      "timezone": "required IANA timezone identifier"
+    }
+  },
+  "state_owners": {
+    "database": "user_travel_preferences.home_timezone",
+    "server_shared_prop": "HandleInertiaRequests auth.timezone",
+    "dropdown_state": "UserMenuContent local selected timezone ref/form",
+    "browser_detection": "Intl.DateTimeFormat().resolvedOptions().timeZone",
+    "client_guard": "localStorage timezone detection attempted marker"
+  },
+  "ux_rules": {
+    "dropdown_location": "Existing authenticated user menu",
+    "manual_selection": "Saves immediately and wins over browser detection",
+    "auto_detection": "Runs once only while the persisted preference is default-backed",
+    "option_source": "Complete shared timezones list"
+  },
+  "verification": [
+    {
+      "command": "php artisan wayfinder:generate --with-form --no-interaction",
+      "status": "passed",
+      "summary": "Generated actions and routes."
+    },
+    {
+      "command": "php artisan test tests\\Feature\\Settings\\UserTimezonePreferenceTest.php --compact",
+      "status": "passed",
+      "summary": "4 tests, 4 passed, 16 assertions."
+    },
+    {
+      "command": "npm run types:check",
+      "status": "passed",
+      "summary": "vue-tsc completed with no errors."
+    },
+    {
+      "command": "npm run lint:check",
+      "status": "passed",
+      "summary": "ESLint completed with no errors after import ordering fix."
+    },
+    {
+      "command": "php artisan test --compact",
+      "status": "passed",
+      "summary": "181 tests, 181 passed, 843 assertions."
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "summary": "Vite production build completed successfully."
+    },
+    {
+      "command": "vendor\\bin\\pint --dirty --format agent",
+      "status": "passed",
+      "summary": "Pint completed successfully."
+    }
+  ],
+  "handoff": {
+    "summary": "User timezone preference is implemented and verified. The app shares auth.timezone, the account menu can detect or manually save a timezone, and travel settings use the shared picker.",
+    "next_agent_steps": [
+      "Optionally perform browser QA against the authenticated account menu.",
+      "Keep unrelated reservation-itinerary/mobile-ui worktree changes separate when committing."
+    ]
+  }
+}
