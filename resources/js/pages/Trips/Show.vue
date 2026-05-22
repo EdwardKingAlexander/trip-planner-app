@@ -13,9 +13,11 @@ import {
     Hotel,
     Image,
     ListChecks,
+    MessageCircle,
     Paperclip,
     Plane,
     Printer,
+    Send,
     Share2,
     Sparkles,
     StickyNote,
@@ -43,6 +45,7 @@ import { update as updateTrip } from '@/routes/trips';
 import { destroy as destroyCost, store as storeCost, update as updateCost } from '@/routes/trips/costs';
 import { destroy as destroyDocument, store as storeDocument, update as updateDocument, upload as uploadDocument } from '@/routes/trips/documents';
 import { destroy as destroyItineraryItem, store as storeItineraryItem, update as updateItineraryItem } from '@/routes/trips/itinerary-items';
+import { store as storeItineraryItemNote } from '@/routes/trips/itinerary-items/notes';
 import { destroy as destroyPackingItem, store as storePackingItem, togglePacked, update as updatePackingItem } from '@/routes/trips/packing-items';
 import { destroy as destroyReminder, store as storeReminder, update as updateReminder } from '@/routes/trips/reminders';
 import { destroy as destroyReservation, store as storeReservation, update as updateReservation } from '@/routes/trips/reservations';
@@ -128,6 +131,30 @@ type ReservationItem = Record<string, any> & {
     flight_details: FlightDetails | null;
 };
 
+type ItineraryNote = {
+    id: string;
+    body: string;
+    author: ParticipantSummary | null;
+    created_at: string | null;
+    kind: 'original' | 'comment';
+};
+
+type ItineraryItem = {
+    id: number;
+    type: string;
+    title: string;
+    description: string | null;
+    location_name: string | null;
+    starts_at: string | null;
+    ends_at: string | null;
+    timezone: string;
+    status: string;
+    is_all_day: boolean;
+    created_by: ParticipantSummary | null;
+    last_edited_by?: string | null;
+    notes_thread: ItineraryNote[];
+};
+
 type AssigneeProgress = {
     key: string;
     label: string;
@@ -171,19 +198,7 @@ type Trip = {
         kind: string;
         is_day_one_anchor: boolean;
         label: string;
-        items: Array<{
-            id: number;
-            type: string;
-            title: string;
-            description: string | null;
-            location_name: string | null;
-            starts_at: string | null;
-            ends_at: string | null;
-            timezone: string;
-            status: string;
-            is_all_day: boolean;
-            last_edited_by?: string | null;
-        }>;
+        items: ItineraryItem[];
         tasks: TaskItem[];
     }>;
     reservations: ReservationItem[];
@@ -234,6 +249,7 @@ const lightboxDocument = ref<TripDocument | null>(null);
 const expandedReservations = ref(new Set<number>());
 const flightDetailsExpanded = ref(new Set<number>());
 const currentUserId = computed(() => page.props.auth.user?.id ?? null);
+const selectedItineraryItemId = ref<number | null>(null);
 
 const itineraryForm = useForm({
     trip_day_id: props.trip.days[0]?.id ?? null,
@@ -327,6 +343,10 @@ const reminderForm = useForm({
     remind_at: '',
     timezone,
     notes: '',
+});
+
+const itineraryNoteForm = useForm({
+    body: '',
 });
 
 const collaboratorForm = useForm({
@@ -543,6 +563,13 @@ const actualTotal = computed(() => props.trip.costs.reduce((sum, cost) => sum + 
 const completedTasks = computed(() => props.trip.tasks.filter((task) => task.completed_at).length);
 const isShared = computed(() => (props.trip.collaborators?.length ?? 0) > 0);
 const itineraryDateTimeMin = computed(() => `${props.trip.starts_on}T00:00`);
+const selectedItineraryItem = computed<ItineraryItem | null>(() => {
+    if (selectedItineraryItemId.value === null) {
+        return null;
+    }
+
+    return props.trip.days.flatMap((day) => day.items).find((item) => item.id === selectedItineraryItemId.value) ?? null;
+});
 const editErrors = computed<Record<string, string>>(() => {
     if (!editing.value) {
         return {};
@@ -594,6 +621,34 @@ const post = (form: ReturnType<typeof useForm>, url: string, resetFields?: strin
         onError: (errors) => {
             scrollToFirstError(errors);
             toast.error("Couldn't save - check the highlighted fields.");
+        },
+    });
+};
+
+const openItineraryThread = (item: ItineraryItem) => {
+    selectedItineraryItemId.value = item.id;
+    itineraryNoteForm.clearErrors();
+};
+
+const closeItineraryThread = () => {
+    selectedItineraryItemId.value = null;
+    itineraryNoteForm.reset();
+    itineraryNoteForm.clearErrors();
+};
+
+const submitItineraryNote = () => {
+    const item = selectedItineraryItem.value;
+
+    if (!item) {
+        return;
+    }
+
+    itineraryNoteForm.post(storeItineraryItemNote.url({ trip: props.trip.id, itineraryItem: item.id }), {
+        preserveScroll: true,
+        onSuccess: () => itineraryNoteForm.reset(),
+        onError: (errors) => {
+            scrollToFirstError(errors);
+            toast.error("Couldn't add the comment.");
         },
     });
 };
@@ -1265,6 +1320,15 @@ const submitTripDetails = () => {
                                         </form>
                                     </template>
                                     <template v-else>
+                                        <div
+                                            class="cursor-pointer rounded-md p-1 transition hover:bg-accent/40 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                            role="button"
+                                            tabindex="0"
+                                            :aria-label="`Open conversation for ${item.title}`"
+                                            @click="openItineraryThread(item)"
+                                            @keydown.enter.prevent="openItineraryThread(item)"
+                                            @keydown.space.prevent="openItineraryThread(item)"
+                                        >
                                         <div class="flex items-start justify-between gap-3">
                                             <div>
                                                 <div class="text-sm font-semibold">{{ item.title }}</div>
@@ -1272,8 +1336,12 @@ const submitTripDetails = () => {
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <span class="rounded-full bg-accent px-2 py-1 text-xs dark:bg-accent">{{ item.status }}</span>
-                                                <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click="startEdit('itinerary', { ...item, trip_day_id: day.id })">Edit</Button>
-                                                <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click="destroyEntry(destroyItineraryItem.url({ trip: trip.id, itineraryItem: item.id }), item.title)">
+                                                <Button size="sm" type="button" variant="outline" class="travel-touch" @click.stop="openItineraryThread(item)">
+                                                    <MessageCircle class="h-4 w-4" />
+                                                    {{ item.notes_thread.length }}
+                                                </Button>
+                                                <Button v-if="trip.can_edit" size="sm" type="button" variant="outline" class="travel-touch" @click.stop="startEdit('itinerary', { ...item, trip_day_id: day.id })">Edit</Button>
+                                                <Button v-if="trip.can_edit" size="sm" type="button" variant="destructive" class="travel-touch" @click.stop="destroyEntry(destroyItineraryItem.url({ trip: trip.id, itineraryItem: item.id }), item.title)">
                                                     <Trash2 class="h-4 w-4" />
                                                     Delete
                                                 </Button>
@@ -1282,6 +1350,7 @@ const submitTripDetails = () => {
                                         <p v-if="item.location_name" class="mt-2 text-sm text-muted-foreground dark:text-muted-foreground">{{ item.location_name }}</p>
                                         <p v-if="item.description" class="mt-2 rounded-md bg-muted p-2 text-sm text-muted-foreground dark:bg-muted dark:text-muted-foreground">{{ item.description }}</p>
                                         <p v-if="isShared && item.last_edited_by" class="mt-2 text-xs italic text-muted-foreground dark:text-muted-foreground">Last edited by {{ item.last_edited_by }}</p>
+                                        </div>
                                     </template>
                                 </div>
                                 <div v-for="task in day.tasks" :key="`itinerary-task-${task.id}`" class="rounded-md border border-border bg-accent/35 p-3 dark:border-border dark:bg-accent/25">
@@ -2446,6 +2515,78 @@ const submitTripDetails = () => {
                 </Card>
             </section>
         </div>
+
+            <div
+                v-if="selectedItineraryItem"
+                class="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
+                role="dialog"
+                aria-modal="true"
+                :aria-label="`${selectedItineraryItem.title} conversation`"
+                @click.self="closeItineraryThread"
+                @keydown.esc="closeItineraryThread"
+            >
+                <div class="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-t-lg border border-border bg-background shadow-xl sm:rounded-lg">
+                    <div class="flex items-start justify-between gap-4 border-b border-border p-4">
+                        <div class="min-w-0">
+                            <div class="text-xs font-medium uppercase text-muted-foreground">Itinerary conversation</div>
+                            <h2 class="truncate text-lg font-semibold">{{ selectedItineraryItem.title }}</h2>
+                            <p class="text-sm text-muted-foreground">
+                                {{ selectedItineraryItem.type }} · {{ formatDateTime(selectedItineraryItem.starts_at, selectedItineraryItem.timezone) }}
+                            </p>
+                        </div>
+                        <Button type="button" size="icon" variant="ghost" class="travel-touch shrink-0" aria-label="Close conversation" @click="closeItineraryThread">
+                            <X class="h-5 w-5" />
+                        </Button>
+                    </div>
+
+                    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+                        <div v-if="!selectedItineraryItem.notes_thread.length" class="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                            No notes yet. Start the conversation for this event.
+                        </div>
+                        <div
+                            v-for="note in selectedItineraryItem.notes_thread"
+                            :key="note.id"
+                            class="flex gap-3"
+                            :class="{ 'justify-end': note.author?.id === currentUserId }"
+                        >
+                            <Avatar v-if="note.author?.id !== currentUserId" class="mt-1 h-8 w-8 shrink-0">
+                                <AvatarFallback>{{ note.author?.initials ?? 'NA' }}</AvatarFallback>
+                            </Avatar>
+                            <div class="max-w-[82%] space-y-1" :class="{ 'items-end text-right': note.author?.id === currentUserId }">
+                                <div class="flex items-center gap-2 text-xs text-muted-foreground" :class="{ 'justify-end': note.author?.id === currentUserId }">
+                                    <span>{{ note.author?.first_name ?? 'Someone' }}</span>
+                                    <span>{{ formatDateTime(note.created_at) }}</span>
+                                    <span v-if="note.kind === 'original'" class="rounded-full bg-accent px-2 py-0.5 text-[10px] uppercase text-accent-foreground">Original note</span>
+                                </div>
+                                <div
+                                    class="whitespace-pre-line rounded-lg px-3 py-2 text-sm leading-6"
+                                    :class="note.author?.id === currentUserId ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'"
+                                >
+                                    {{ note.body }}
+                                </div>
+                            </div>
+                            <Avatar v-if="note.author?.id === currentUserId" class="mt-1 h-8 w-8 shrink-0">
+                                <AvatarFallback>{{ note.author?.initials ?? 'ME' }}</AvatarFallback>
+                            </Avatar>
+                        </div>
+                    </div>
+
+                    <form v-if="trip.can_edit" class="border-t border-border p-4" @submit.prevent="submitItineraryNote">
+                        <div class="flex gap-2">
+                            <textarea
+                                v-model="itineraryNoteForm.body"
+                                class="min-h-12 flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                placeholder="Write a comment..."
+                            />
+                            <Button type="submit" class="travel-button-primary self-end" :disabled="itineraryNoteForm.processing">
+                                <Send class="h-4 w-4" />
+                                Send
+                            </Button>
+                        </div>
+                        <InputError class="mt-2" :message="itineraryNoteForm.errors.body" />
+                    </form>
+                </div>
+            </div>
 
             <div
                 v-if="lightboxDocument"

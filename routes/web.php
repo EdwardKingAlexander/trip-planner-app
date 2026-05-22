@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\ItineraryItemNoteController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReminderInboxController;
 use App\Http\Controllers\TripAutomationController;
@@ -33,6 +34,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('trips/{trip}/itinerary-items', [TripItineraryController::class, 'store'])->name('trips.itinerary-items.store');
     Route::patch('trips/{trip}/itinerary-items/{itineraryItem}', [TripItineraryController::class, 'update'])->name('trips.itinerary-items.update');
     Route::delete('trips/{trip}/itinerary-items/{itineraryItem}', [TripItineraryController::class, 'destroy'])->name('trips.itinerary-items.destroy');
+    Route::post('trips/{trip}/itinerary-items/{itineraryItem}/notes', [ItineraryItemNoteController::class, 'store'])->name('trips.itinerary-items.notes.store');
     Route::post('trips/{trip}/reservations', [TripReservationController::class, 'store'])->name('trips.reservations.store');
     Route::patch('trips/{trip}/reservations/{reservation}', [TripReservationController::class, 'update'])->name('trips.reservations.update');
     Route::delete('trips/{trip}/reservations/{reservation}', [TripReservationController::class, 'destroy'])->name('trips.reservations.destroy');

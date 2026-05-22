@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ItineraryItem;
 use App\Models\Reservation;
 use App\Models\Trip;
 use App\Models\User;
@@ -76,7 +77,9 @@ class TripController extends Controller
         $trip->load([
             'user',
             'collaborators.user',
+            'days.itineraryItems.createdBy',
             'days.itineraryItems.updatedBy',
+            'days.itineraryItems.notes.createdBy',
             'days.reservations.tripDays',
             'reservations.flightSegments',
             'reservations.lodgingStay',
@@ -219,7 +222,9 @@ class TripController extends Controller
                     'timezone' => $item->timezone,
                     'status' => $item->status,
                     'is_all_day' => $item->is_all_day,
+                    'created_by' => $this->participantSummary($item->createdBy),
                     'last_edited_by' => $this->editorName($item),
+                    'notes_thread' => $this->itineraryNoteThread($item),
                 ]),
                 'tasks' => $tasksByDate
                     ->get($day->date->toDateString(), collect())
@@ -325,6 +330,34 @@ class TripController extends Controller
         $editor = $model->updatedBy;
 
         return $editor?->first_name !== '' ? $editor?->first_name : null;
+    }
+
+    /**
+     * @return list<array{id: string, body: string, author: array{id: int, name: string, first_name: string, initials: string}|null, created_at: string|null, kind: string}>
+     */
+    private function itineraryNoteThread(ItineraryItem $item): array
+    {
+        $originalNote = blank($item->description) ? [] : [[
+            'id' => "description-{$item->id}",
+            'body' => $item->description,
+            'author' => $this->participantSummary($item->createdBy),
+            'created_at' => $item->created_at?->toIso8601String(),
+            'kind' => 'original',
+        ]];
+
+        $comments = $item->notes
+            ->sortBy('created_at')
+            ->values()
+            ->map(fn ($note) => [
+                'id' => "note-{$note->id}",
+                'body' => $note->body,
+                'author' => $this->participantSummary($note->createdBy),
+                'created_at' => $note->created_at?->toIso8601String(),
+                'kind' => 'comment',
+            ])
+            ->all();
+
+        return [...$originalNote, ...$comments];
     }
 
     private function suggestedCurrencyFor(Trip $trip, ?User $user): string

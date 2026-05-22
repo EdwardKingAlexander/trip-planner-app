@@ -217,6 +217,59 @@ test('dated tasks are exposed on the matching itinerary day', function () {
         );
 });
 
+test('collaborators can comment on itinerary item conversations inline', function () {
+    $owner = User::factory()->create(['name' => 'Avery Planner']);
+    $editor = User::factory()->create(['name' => 'Jordan Traveler']);
+    $trip = Trip::create([
+        'user_id' => $owner->id,
+        'name' => 'Seattle Weekend',
+        'destination' => 'Seattle, Washington',
+        'starts_on' => '2026-11-06',
+        'ends_on' => '2026-11-08',
+        'status' => 'planned',
+    ]);
+    $trip->syncDays();
+    $trip->collaborators()->create([
+        'user_id' => $editor->id,
+        'email' => $editor->email,
+        'role' => 'editor',
+        'accepted_at' => now(),
+    ]);
+
+    $this->actingAs($owner)->post(route('trips.itinerary-items.store', $trip), [
+        'trip_day_id' => $trip->days()->first()->id,
+        'type' => 'note',
+        'title' => 'Quiet morning',
+        'description' => 'make baby?',
+        'starts_at' => '2026-11-06T10:00',
+        'timezone' => 'America/Los_Angeles',
+        'status' => 'planned',
+    ])->assertRedirect();
+
+    $itineraryItem = $trip->itineraryItems()->firstWhere('title', 'Quiet morning');
+
+    $this->actingAs($editor)->post(route('trips.itinerary-items.notes.store', [$trip, $itineraryItem]), [
+        'body' => 'The baby has already been made',
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('itinerary_item_notes', [
+        'itinerary_item_id' => $itineraryItem->id,
+        'created_by_user_id' => $editor->id,
+        'body' => 'The baby has already been made',
+    ]);
+
+    $this->actingAs($editor)
+        ->get(route('trips.show', $trip))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Trips/Show')
+            ->where('trip.days.0.items.0.notes_thread.0.body', 'make baby?')
+            ->where('trip.days.0.items.0.notes_thread.0.author.first_name', 'Avery')
+            ->where('trip.days.0.items.0.notes_thread.1.body', 'The baby has already been made')
+            ->where('trip.days.0.items.0.notes_thread.1.author.first_name', 'Jordan'),
+        );
+});
+
 test('editors can update itinerary reservations budget and planning notes', function () {
     $owner = User::factory()->create();
     $editor = User::factory()->create();
